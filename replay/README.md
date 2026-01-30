@@ -1,45 +1,75 @@
-Make sure to have debug build of JDK.
+# JIT Replay Testing
+
+## Prerequisites
+
+Use a **debug build of JDK**. Example:
+
 ```
 openjdk version "27-internal" 2026-09-15
 OpenJDK Runtime Environment (build 27-internal-adhoc.aman.jdk)
 OpenJDK 64-Bit Server VM (build 27-internal-adhoc.aman.jdk, mixed mode, sharing)
 ```
-First we dump replay data.
+
+---
+
+## Workflow
+
+### 1. Dump replay data
+
+Run:
+
+```bash
+java -XX:+UnlockDiagnosticVMOptions -XX:+PrintCompilation -XX:+LogCompilation -XX:+PrintAssembly -XX:CompileCommand=DumpReplay,\*::\* -jar pdfbox-app-3.0.4.jar
 ```
-java -XX:+UnlockDiagnosticVMOptions  -XX:+PrintCompilation -XX:+LogCompilation  -XX:+PrintAssembly  -XX:CompileCommand=DumpReplay,\*::\* -jar pdfbox-app-3.0.4.jar
-```
+
 This creates two types of files:
-1. `hotspot_pid<pid>.log`
-2. `replay_pid<pid>_compid<compid>.log`
 
-Now the goal is to see if the replay produces the same assembly as the original compilation.
+- `hotspot_pid<pid>.log`
+- `replay_pid<pid>_compid<compid>.log`
 
-We run `extract_nmethods.py` to extract the assembly from the `hotspot_pid<pid>.log` file and each file is called: `<compile_id>,<method_name>,<c1|c2>.log`.
-We include compilation ID to ensure that we use the correct replay file.
-We include method name to enure that we compare the correct ASM code.
+### 2. Extract assembly from original compilation
 
-Running `extract_nmethods.py` creates the files in the `replay_dump` directory.
+**Goal:** Check whether replay produces the same assembly as the original compilation.
 
-For each file in `replay_dump`, we do a replay with the corresponding `replay_pid<pid>_compid<compid>.log` file.
-This produces a temporary file called `lol.log` which contains the assembly code of the method compiled.
-This replayed assembly code is saved in the `replay_individual` directory.
-This is done by running `replay_and_diff.py`.
-It basically runs the following command:
+Run `extract_nmethods.py` to extract assembly from `hotspot_pid<pid>.log`. Each output file is named:
+
+`<compile_id>,<method_name>,<c1|c2>.log`
+
+- **Compilation ID** — ensures the correct replay file is used.
+- **Method name** — ensures the correct ASM code is compared.
+
+Output goes to the `replay_dump` directory.
+
+### 3. Replay and capture assembly
+
+For each file in `replay_dump`, run a replay with the matching `replay_pid<pid>_compid<compid>.log` file. This is done by running `replay_and_diff.py`.
+
+It runs a command like:
+
+```bash
+java -XX:+UnlockDiagnosticVMOptions -XX:+PrintCompilation -XX:+LogCompilation -XX:+PrintAssembly -XX:+ReplayCompiles -XX:ReplayDataFile=replay_pid<pid>_compid<compid>.log -XX:+ReplayIgnoreInitErrors -XX:LogFile=lol.log -jar pdfbox-app-3.0.4.jar
 ```
-java -XX:+UnlockDiagnosticVMOptions  -XX:+PrintCompilation -XX:+LogCompilation  -XX:+PrintAssembly  -XX:+ReplayCompiles -XX:ReplayDataFile=replay_pid<pid>_compid<compid>.log -XX:+ReplayIgnoreInitErrors -XX:LogFile=lol.log -jar pdfbox-app-3.0.4.jar
-```
 
-Finally, we diff the original assembly (replay_dump) code with the replayed assembly (replay_individual) code after performing three normalizations:
-1. Hex addresses -> 0x0
-2. Compiled method timestamp/compile_id/level -> 0
-3. Ignore whitespace-only changes
+- Replay output is written to a temporary file `lol.log`.
+- The script saves the replayed assembly into the `replay_individual` directory.
 
-diff directory has all the diffs.
-Examples:
+### 4. Diff original vs replayed assembly
 
-1. [Difference in the name of runtime_call](diff/2,java.lang.String::hashCode,c1.diff)
-2. [Difference in registers used](diff/691,sun.reflect.annotation.AnnotationParser::parseAnnotations,c1.diff)
-3. [Difference in one of the application classes](diff/1547,picocli.CommandLine$Model$Interpolator::interpolate,c1.diff)
-4. [Difference in instructions (could just be refactoring)](diff/1241,jdk.internal.classfile.impl.DirectCodeBuilder$4::generateStackMaps,c1.diff)
+Compare assembly in `replay_dump` (original) with `replay_individual` (replayed) after three normalizations:
 
+1. **Hex addresses** → `0x0`
+2. **Compiled method timestamp / compile_id / level** → `0`
+3. **Whitespace-only changes** → ignored
 
+All diffs are stored in the `diff` directory.
+
+---
+
+## Example diffs
+
+| Type | File |
+|------|------|
+| Difference in runtime call name | [2,java.lang.String::hashCode,c1.diff](diff/2,java.lang.String::hashCode,c1.diff) |
+| Difference in registers used | [691,sun.reflect.annotation.AnnotationParser::parseAnnotations,c1.diff](diff/691,sun.reflect.annotation.AnnotationParser::parseAnnotations,c1.diff) |
+| Difference in application class | [1547,picocli.CommandLine$Model$Interpolator::interpolate,c1.diff](diff/1547,picocli.CommandLine$Model$Interpolator::interpolate,c1.diff) |
+| Difference in instructions (possible refactor) | [1241,jdk.internal.classfile.impl.DirectCodeBuilder$4::generateStackMaps,c1.diff](diff/1241,jdk.internal.classfile.impl.DirectCodeBuilder$4::generateStackMaps,c1.diff) |
