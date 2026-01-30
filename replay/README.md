@@ -24,6 +24,10 @@ For each file in `replay_dump`, we do a replay with the corresponding `replay_pi
 This produces a temporary file called `lol.log` which contains the assembly code of the method compiled.
 This replayed assembly code is saved in the `replay_individual` directory.
 This is done by running `replay_and_diff.py`.
+It basically runs the following command:
+```
+java -XX:+UnlockDiagnosticVMOptions  -XX:+PrintCompilation -XX:+LogCompilation  -XX:+PrintAssembly  -XX:+ReplayCompiles -XX:ReplayDataFile=replay_pid<pid>_compid<compid>.log -XX:+ReplayIgnoreInitErrors -XX:LogFile=lol.log -jar pdfbox-app-3.0.4.jar
+```
 
 Finally, we diff the original assembly (replay_dump) code with the replayed assembly (replay_individual) code after performing three normalizations:
 1. Hex addresses -> 0x0
