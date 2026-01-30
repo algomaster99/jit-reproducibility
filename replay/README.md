@@ -21,6 +21,7 @@ Run:
 ```bash
 java -XX:+UnlockDiagnosticVMOptions -XX:+PrintCompilation -XX:+LogCompilation -XX:+PrintAssembly -XX:CompileCommand=DumpReplay,\*::\* -jar pdfbox-app-3.0.4.jar
 ```
+> The payload simply prints the help message and exits.
 
 This creates two types of files:
 
