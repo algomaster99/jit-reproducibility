@@ -63,6 +63,7 @@ Apparently the classpath should match.
 
 It works.
 Probably, because classpath validation is not strict.
+This relaxation has been introduced in https://github.com/openjdk/jdk/commit/85715e1050fa774c3267dbbe2f749717aeeec8ff.
 ```
 [0.004s][info][class,path] bootstrap loader class path=/home/aman/.sdkman/candidates/java/debug-build-27/lib/modules
 [0.020s][info][class,path] Reading classpath(s) from /home/aman/Desktop/experiments/jit-testing/pdfbox-as-application/pdfbox-27+7.aot (size = 2)
