@@ -1,3 +1,5 @@
+### Merging AOT cache using mutliple `-XX:AOTCache`
+
 ```shell
 java -XX:AOTCacheOutput=a.aot  -jar target/A-1.0-SNAPSHOT.jar
 java -XX:AOTCacheOutput=b.aot  -jar target/B-1.0-SNAPSHOT.jar
@@ -25,4 +27,22 @@ This is verified with:
 openjdk version "27-internal" 2026-09-15
 OpenJDK Runtime Environment (build 27-internal-adhoc.aman.jdk)
 OpenJDK 64-Bit Server VM (build 27-internal-adhoc.aman.jdk, mixed mode, sharing)
+```
+
+### Merging CDS archive using by combining `classlist` files
+
+```shell
+java -Xshare:off -XX:DumpLoadedClassList=a.classlist -jar target/A-1.0-SNAPSHOT.jar
+java -Xshare:off -XX:DumpLoadedClassList=b.classlist -jar target/B-1.0-SNAPSHOT.jar
+```
+
+This creates two classlist files `a.classlist` and `b.classlist` which can be merged into a single file `combined.classlist` by concatenating the two files and removing duplicates.
+> I did it naively and only added
+`com/example/B id: 718
+@cp com/example/B 1 2 10 15 17 18 22 23`
+to the `merged.classlist` file and it worked as expected.
+
+Then I created a CDS archive using the merged classlist file:
+```shell
+java -Xshare:dump -XX:SharedArchiveFile=combined.jsa -XX:SharedClassListFile=../combined.classlist -jar target/app-1.0-SNAPSHOT.jar
 ```
