@@ -52,7 +52,8 @@ Using as-is, throws an error:
 [1,463s][warning][aot,resolve] @cp Workload 2 9 11 12 19 21 22 27 31 39 53 60 64 68 69 127
 [1,463s][warning][aot,resolve]     ^
 ```
-so I commented out [this line](https://github.com/openjdk/jdk/blob/62c7e9aefd4320d9d0cd8fa10610f59abb4de670/src/hotspot/share/cds/classListParser.cpp#L834).
+so I commented out [this line](https://github.com/openjdk/jdk/blob/62c7e9aefd4320d9d0cd8fa10610f59abb4de670/src/hotspot/share/cds/classListParser.cpp#L834)
+but can be left since it is just a warning.
 
 ```
 java  -Xshare:off -XX:DumpLoadedClassList=pdfbox-27+7.classlist -jar workload-with-pdfbox.jar 
