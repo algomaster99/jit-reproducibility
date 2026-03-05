@@ -100,3 +100,67 @@ The AOT cache is the fastest only for `sub` — the base module whose cache was 
 
 The key reason is **archive heap (hp) and AOT code (ac) region retention**. When `sub.aot` is built fresh, the JVM captures `Archived Heap` and `AOT Code` region specifically for `sub`'s workload. Those regions are directly usable at startup.
 This is currently not implemented for merged caches.
+
+Using my tool [aotp](https://github.com/chains-project/aotp), we can see the bytes used in archives.
+
+1. sub.aot
+```
+============ region ============= 0 "rw"
+- used:                           3019872
+============ region ============= 1 "ro"
+- used:                           5659416
+============ region ============= 2 "bm"
+- used:                           129008
+============ region ============= 3 "hp"
+- used:                           789856
+============ region ============= 4 "ac"
+- used:                           399232
+```
+
+2. add.aot
+```
+============ region ============= 0 "rw"
+- used:                           2933880
+============ region ============= 1 "ro"
+- used:                           5554752
+============ region ============= 2 "bm"
+- used:                           107760
+============ region ============= 3 "hp"
+- used:                           0
+============ region ============= 4 "ac"
+- used:                           0
+============ end regions ======== 
+```
+
+3. mul.aot
+```
+============ region ============= 0 "rw"
+- used:                           2935432
+============ region ============= 1 "ro"
+- used:                           5557592
+============ region ============= 2 "bm"
+- used:                           107824
+============ region ============= 3 "hp"
+- used:                           0
+============ region ============= 4 "ac"
+- used:                           0
+```
+
+4. math.aot
+```
+============ region ============= 0 "rw"
+- used:                           2957728
+============ region ============= 1 "ro"
+- used:                           5588512
+============ region ============= 2 "bm"
+- used:                           108576
+============ region ============= 3 "hp"
+- used:                           0
+============ region ============= 4 "ac"
+- used:                           0
+```
+
+[!NOTE] All the regions are printed using:
+```
+java -jar ~/Desktop/chains/aotp/target/aotp-0.0.1-SNAPSHOT.jar math/math.aot --header
+```
