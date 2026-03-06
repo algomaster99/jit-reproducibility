@@ -6,6 +6,9 @@ log() { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
 log "Java version:"
 java -version
 
+log "Deleting exisiting aot files"
+find . -name "*.aot" -type f -delete
+
 log "Building AOT cache for sub..."
 java -XX:AOTCacheOutput=sub/sub.aot -jar sub/target/sub-1.0-SNAPSHOT.jar
 log "sub.aot created."
