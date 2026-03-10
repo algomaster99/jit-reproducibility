@@ -38,3 +38,27 @@ jobs:
       - name: Build PDFBox
         working-directory: pdfbox
         run: mvn package -q
+
+      - name: Check AOT cache
+        working-directory: pdfbox
+        run: |
+          output=$(./check-aot.sh 2>&1)
+          echo "$output"
+          {
+            echo "## AOT Cache Check"
+            echo '```'
+            echo "$output" | sed 's/\x1B\[[0-9;]*m//g'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Performance check
+        working-directory: pdfbox
+        run: |
+          output=$(./performance-check.sh 2>&1)
+          echo "$output"
+          {
+            echo "## Performance Results"
+            echo '```'
+            echo "$output" | sed 's/\x1B\[[0-9;]*m//g'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
