@@ -1,0 +1,3 @@
+[submodule "pdfbox"]
+	path = pdfbox
+	url = https://github.com/algomaster99/pdfbox.git
