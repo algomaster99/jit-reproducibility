@@ -1,0 +1,40 @@
+name: PDFBox AOT Cache
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  aot-cache:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Download custom JDK
+        run: |
+          curl -L -o jdk-custom.tar.gz \
+            "https://github.com/algomaster99/jdk/releases/download/jdk-supply-chain-aotcache-743e06b54fa5c602bf575e40137b56ad432215cd/jdk-custom-743e06b.tar.gz"
+
+      - name: Set up custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build PDFBox
+        working-directory: pdfbox
+        run: mvn package -q
