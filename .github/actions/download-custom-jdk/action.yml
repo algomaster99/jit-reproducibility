@@ -1,0 +1,10 @@
+name: Download custom JDK
+description: Download the custom JDK used for AOT cache workflows
+runs:
+  using: composite
+  steps:
+    - name: Download custom JDK
+      shell: bash
+      run: |
+        curl -L -o jdk-custom.tar.gz \
+          "https://github.com/algomaster99/jdk/releases/download/jdk-supply-chain-aotcache-cf4948a6479c3a3274f79d62a33c320888a5e1e9/jdk-custom-cf4948a6479c3a3274f79d62a33c320888a5e1e9.tar.gz"
