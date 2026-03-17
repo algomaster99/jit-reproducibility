@@ -35,7 +35,7 @@ jobs:
 
       - name: Build PDFBox
         working-directory: pdfbox
-        run: mvn package -q
+        run: mvn package -q -Piterative-merge
 
       - name: Check AOT cache
         working-directory: pdfbox
