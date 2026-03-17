@@ -1,3 +1,6 @@
 [submodule "pdfbox"]
 	path = pdfbox
 	url = https://github.com/algomaster99/pdfbox.git
+[submodule "pdfbox-deps/pdfbox-jbig2"]
+	path = pdfbox-deps/pdfbox-jbig2
+	url = git@github.com:apache/pdfbox-jbig2.git
