@@ -23,4 +23,5 @@ log "math"
 sep
 timed "default"    java -jar math/target/math-1.0-SNAPSHOT.jar
 timed "no CDS"     java -Xshare:off -jar math/target/math-1.0-SNAPSHOT.jar
+timed "AOT cache (math)"  java -XX:AOTCache=math/math.aot -jar math/target/math-1.0-SNAPSHOT.jar
 timed "AOT cache (tree)"  java -XX:AOTCache=tree-combined.aot -jar math/target/math-1.0-SNAPSHOT.jar
