@@ -16,7 +16,16 @@
     <name>Math Application</name>
 
     <dependencies>
-        <!-- Brings in mul, which brings add, which brings sub -->
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>add</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>sub</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.example</groupId>
             <artifactId>mul</artifactId>

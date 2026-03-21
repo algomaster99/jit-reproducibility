@@ -10,8 +10,8 @@
     <packaging>pom</packaging>
     <name>Recursively Updating AOT Cache</name>
     <description>
-        Demonstrates recursive AOT cache merging: sub.aot -> add.aot -> mul.aot,
-        with the final cache used by the math module.
+        Demonstrates an aggregator setup where add, sub, and mul are independent
+        modules and the math module depends on all three directly.
     </description>
 
     <modules>

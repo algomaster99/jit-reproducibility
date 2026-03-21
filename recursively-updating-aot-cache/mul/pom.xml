@@ -15,15 +15,6 @@
     <packaging>jar</packaging>
     <name>Multiplication Module</name>
 
-    <dependencies>
-        <!-- Brings in add, which transitively brings in sub -->
-        <dependency>
-            <groupId>com.example</groupId>
-            <artifactId>add</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-    </dependencies>
-
     <build>
         <plugins>
             <plugin>
