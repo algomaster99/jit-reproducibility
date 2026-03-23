@@ -45,7 +45,7 @@ jobs:
         working-directory: pdfbox-deps/pdfbox-jbig2
         run: |
           set -euo pipefail
-          mvn clean test -q
+          mvn clean test -Ptree-merge -q
           test -f cache.aot
 
       - name: Build Apache Commons IO cache
