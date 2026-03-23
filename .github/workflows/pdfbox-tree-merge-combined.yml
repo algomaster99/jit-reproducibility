@@ -70,8 +70,8 @@ jobs:
           {
             echo "## tree.aot creation (orchestrate-combine-3)"
             echo
-            echo "- `single.aot`: ${single_size}"
-            echo "- `tree.aot`: ${tree_size}"
+            echo "- single.aot: ${single_size}"
+            echo "- tree.aot: ${tree_size}"
             echo
             echo '```'
             echo "$tree_out_clean"
@@ -94,8 +94,8 @@ jobs:
           {
             echo "## Timed workload results (no-AOT vs single vs tree)"
             echo
-            echo "- `single.aot`: ${single_size}"
-            echo "- `tree.aot`: ${tree_size}"
+            echo "- single.aot: ${single_size}"
+            echo "- tree.aot: ${tree_size}"
             echo
             echo '```'
             echo "$wl_out_clean"
