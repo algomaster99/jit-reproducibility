@@ -33,13 +33,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Build PDFBox tools cache (tree-merge)
+      - name: Build PDFBox tools cache (iterative-merge)
         working-directory: pdfbox-experiment/pdfbox
         run: |
           set -euo pipefail
           find . -name "*.aot" -type f -delete
-          mvn package -q -Ptree-merge
+          mvn package -q -Piterative-merge
           test -f tools/cache.aot
+          test -f io/cache.aot
+          test -f fontbox/cache.aot
+          test -f xmpbox/cache.aot
+          test -f pdfbox/cache.aot
+          test -f preflight/cache.aot
+          test -f examples/cache.aot
 
       - name: Build JBIG2 cache (tree-merge)
         working-directory: pdfbox-experiment/pdfbox-deps/pdfbox-jbig2
