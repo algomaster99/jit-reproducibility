@@ -54,7 +54,8 @@ jobs:
           mvn clean test -Ptree-merge -q
           test -f cache.aot
 
-      - name: Build Apache Commons IO cache
+      # TODO: add profile in commons io
+      - name: Build Apache Commons IO cache (tree-merge)
         working-directory: pdfbox-experiment/pdfbox-deps/apache-commons-io
         run: |
           set -euo pipefail
