@@ -7,3 +7,6 @@
 [submodule "pdfbox-deps/apache-commons-io"]
 	path = pdfbox-experiment/pdfbox-deps/apache-commons-io
 	url = git@github.com:algomaster99/commons-io.git
+[submodule "jetty-web-experiment/jackson-databind"]
+	path = jetty-web-experiment/jackson-databind
+	url = git@github.com:algomaster99/jackson-databind.git
