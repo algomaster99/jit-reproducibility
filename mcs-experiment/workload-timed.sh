@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Defaults to 'java' from PATH for both if not set.
 
-JAVA_NO_BIN="/home/aman/.sdkman/candidates/java/25-open/bin/java"
+JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
 JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
