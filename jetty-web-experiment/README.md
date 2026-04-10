@@ -11,7 +11,7 @@
 4. Merge
 
 ```
-java -Xlog:aot -XX:AOTMode=merge -XX:AOTCache=../jackson-databind/cache.aot -XX:AOTMergeInputs=../../pdfbox-experiment/pdfbox/tools/cache.aot -XX:AOTCacheOutput=tree.aot -cp ../jackson-databind/target/classes/:../../pdfbox-experiment/pdfbox/tools/target/pdfbox-tools-3.0.7.jar -version
+java -Xlog:aot -XX:AOTMode=merge -XX:AOTCache=../jackson-databind/cache.aot -XX:AOTMergeInputs=../../pdfbox-experiment/pdfbox/pdfbox/cache.aot -XX:AOTCacheOutput=tree.aot -cp ../jackson-databind/target/classes/:../../pdfbox-experiment/pdfbox/pdfbox/target/pdfbox-3.0.7.jar -version
 ```
 
 You get performance improvements is only on the first request.
@@ -40,11 +40,12 @@ SLF4J(W): Defaulting to no-operation (NOP) logger implementation
 SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
 Server started on http://localhost:8080
 Endpoints: /hello  /json  /pdf
-[/hello] 0.322 ms
-[/hello] 0.413 ms
-[/json]  5.535 ms
-[/json]  0.468 ms
-[/pdf]   149.976 ms
-[/pdf]   3.562 ms
+[/hello] 0.544 ms
+[/hello] 0.319 ms
+[/json]  6.672 ms
+[/json]  0.494 ms
+[/pdf]   125.170 ms
+[/pdf]   2.954 ms
 ```
-> the workload of PDFBox is not good. We need to get it from core maybe.
+
+As you can see, the performance improvement is only for the first request.
