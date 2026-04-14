@@ -1,4 +1,4 @@
-name: PDFBox AOT Cache (tree combine via orchestrate-combine-3)
+name: PDFBox Distributed AOT Cache
 
 on:
   push:
@@ -62,46 +62,61 @@ jobs:
           mvn clean test -q
           test -f cache.aot
 
-      - name: Set up default JDK 25 (single.aot)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Capture Temurin java path
-        run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
-
-      - name: Create single.aot (default JDK)
+      - name: Build workload jars for missing dependency caches
         working-directory: pdfbox-experiment
         run: |
           set -euo pipefail
-          chmod +x create-single-aot.sh
-          ./create-single-aot.sh
-          test -f single.aot
 
-      - name: Re-enable custom JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: jdkfile
-          java-version: '25'
-          jdkFile: jdk-custom.tar.gz
+          workloads=(
+            pdfbox-deps/commons-logging-workload
+            pdfbox-deps/bc-java-prov-workload
+            pdfbox-deps/bc-java-util-workload
+            pdfbox-deps/bc-java-pkix-workload
+          )
 
-      - name: Create tree.aot (orchestrate-combine-3.sh)
+          for workload in "${workloads[@]}"; do
+            echo "Building $workload"
+            (cd "$workload" && mvn -q clean package)
+          done
+
+      - name: Record workload-based AOT caches
         working-directory: pdfbox-experiment
         run: |
           set -euo pipefail
-          chmod +x orchestrate-combine-3.sh workload-timed.sh
-          tree_out=$(./orchestrate-combine-3.sh 2>&1)
+          rm -f \
+            pdfbox-deps/commons-logging-workload/cache.aot \
+            pdfbox-deps/bc-java-prov-workload/cache.aot \
+            pdfbox-deps/bc-java-util-workload/cache.aot \
+            pdfbox-deps/bc-java-pkix-workload/cache.aot
+
+          java -XX:AOTCacheOutput=pdfbox-deps/commons-logging-workload/cache.aot \
+            -jar pdfbox-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar
+          java -XX:AOTCacheOutput=pdfbox-deps/bc-java-prov-workload/cache.aot \
+            -jar pdfbox-deps/bc-java-prov-workload/target/bc-java-prov-workload-1.0-SNAPSHOT.jar
+          java -XX:AOTCacheOutput=pdfbox-deps/bc-java-util-workload/cache.aot \
+            -jar pdfbox-deps/bc-java-util-workload/target/bc-java-util-workload-1.0-SNAPSHOT.jar
+          java -XX:AOTCacheOutput=pdfbox-deps/bc-java-pkix-workload/cache.aot \
+            -jar pdfbox-deps/bc-java-pkix-workload/target/bc-java-pkix-workload-1.0-SNAPSHOT.jar
+
+          test -f pdfbox-deps/commons-logging-workload/cache.aot
+          test -f pdfbox-deps/bc-java-prov-workload/cache.aot
+          test -f pdfbox-deps/bc-java-util-workload/cache.aot
+          test -f pdfbox-deps/bc-java-pkix-workload/cache.aot
+
+      - name: Create tree.aot (orchestrate-combine-4.sh)
+        working-directory: pdfbox-experiment
+        run: |
+          set -euo pipefail
+          chmod +x orchestrate-combine-4.sh
+          tree_out=$(./orchestrate-combine-4.sh 2>&1)
           echo "$tree_out"
           tree_out_clean=$(echo "$tree_out" | sed 's/\x1B\[[0-9;]*m//g')
 
-          single_size=$(du -h single.aot | awk '{print $1}')
-          tree_size=$(du -h tree.aot 2>/dev/null | awk '{print $1}' || echo "?")
+          tree_size=$(du -h tree.aot | awk '{print $1}')
 
           {
-            echo "## tree.aot creation (orchestrate-combine-3)"
+            echo "## tree.aot creation (orchestrate-combine-4)"
             echo
-            echo "- single.aot: ${single_size}"
             echo "- tree.aot: ${tree_size}"
             echo
             echo '```'
@@ -110,27 +125,64 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           test -f tree.aot
-          
-      - name: Run timed workload
+
+      - name: Verify merged AOT cache coverage
         working-directory: pdfbox-experiment
         run: |
           set -euo pipefail
-          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_SINGLE_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_TREE_BIN="$JAVA_HOME/bin/java" ./workload-timed.sh 2>&1)
-          echo "$wl_out"
-          wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
+          chmod +x check-aot-full.sh
+          check_out=$(./check-aot-full.sh 2>&1)
+          echo "$check_out"
+          check_out_clean=$(echo "$check_out" | sed 's/\x1B\[[0-9;]*m//g')
 
-          single_size=$(du -h single.aot | awk '{print $1}')
           tree_size=$(du -h tree.aot | awk '{print $1}')
 
           {
-            echo "## Timed workload results (no-AOT vs single vs tree)"
+            echo "## AOT verification (check-aot-full.sh)"
             echo
-            echo "- single.aot: ${single_size}"
             echo "- tree.aot: ${tree_size}"
             echo
             echo '```'
-            echo "$wl_out_clean"
+            echo "$check_out_clean"
             echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Populate local Maven repo with JAR, POM, and AOT artifacts
+        working-directory: pdfbox-experiment
+        run: |
+          set -euo pipefail
+          chmod +x build-m2.sh
+          ./build-m2.sh
+          test -f local-repo/org/apache/pdfbox/pdfbox/3.0.7/pdfbox-3.0.7.aot
+          test -f local-repo/commons-logging/commons-logging/1.3.5/commons-logging-1.3.5.aot
+          test -f local-repo/org/bouncycastle/bcprov-jdk18on/1.83/bcprov-jdk18on-1.83.aot
+
+      - name: Write artifact summary
+        working-directory: pdfbox-experiment
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Distributed AOT artifact summary"
+            echo
+            echo "| Artifact | Cache path | Size |"
+            echo "|---|---|---|"
+            echo "| io | \`pdfbox/io/cache.aot\` | $(du -h pdfbox/io/cache.aot | awk '{print $1}') |"
+            echo "| fontbox | \`pdfbox/fontbox/cache.aot\` | $(du -h pdfbox/fontbox/cache.aot | awk '{print $1}') |"
+            echo "| xmpbox | \`pdfbox/xmpbox/cache.aot\` | $(du -h pdfbox/xmpbox/cache.aot | awk '{print $1}') |"
+            echo "| pdfbox | \`pdfbox/pdfbox/cache.aot\` | $(du -h pdfbox/pdfbox/cache.aot | awk '{print $1}') |"
+            echo "| preflight | \`pdfbox/preflight/cache.aot\` | $(du -h pdfbox/preflight/cache.aot | awk '{print $1}') |"
+            echo "| tools | \`pdfbox/tools/cache.aot\` | $(du -h pdfbox/tools/cache.aot | awk '{print $1}') |"
+            echo "| examples | \`pdfbox/examples/cache.aot\` | $(du -h pdfbox/examples/cache.aot | awk '{print $1}') |"
+            echo "| pdfbox-jbig2 | \`pdfbox-deps/pdfbox-jbig2/cache.aot\` | $(du -h pdfbox-deps/pdfbox-jbig2/cache.aot | awk '{print $1}') |"
+            echo "| apache-commons-io | \`pdfbox-deps/apache-commons-io/cache.aot\` | $(du -h pdfbox-deps/apache-commons-io/cache.aot | awk '{print $1}') |"
+            echo "| commons-logging-workload | \`pdfbox-deps/commons-logging-workload/cache.aot\` | $(du -h pdfbox-deps/commons-logging-workload/cache.aot | awk '{print $1}') |"
+            echo "| bc-java-prov-workload | \`pdfbox-deps/bc-java-prov-workload/cache.aot\` | $(du -h pdfbox-deps/bc-java-prov-workload/cache.aot | awk '{print $1}') |"
+            echo "| bc-java-util-workload | \`pdfbox-deps/bc-java-util-workload/cache.aot\` | $(du -h pdfbox-deps/bc-java-util-workload/cache.aot | awk '{print $1}') |"
+            echo "| bc-java-pkix-workload | \`pdfbox-deps/bc-java-pkix-workload/cache.aot\` | $(du -h pdfbox-deps/bc-java-pkix-workload/cache.aot | awk '{print $1}') |"
+            echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
+            echo
+            echo "- local-repo entries: $(find local-repo -type f | wc -l | tr -d ' ')"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload PDFBox workload artifacts
@@ -139,8 +191,8 @@ jobs:
           name: pdfbox-tree-artifacts
           path: |
             pdfbox-experiment/workload-tmp/
-            pdfbox-experiment/single.aot
             pdfbox-experiment/tree.aot
+            pdfbox-experiment/local-repo/
             pdfbox-experiment/pdfbox/io/cache.aot
             pdfbox-experiment/pdfbox/fontbox/cache.aot
             pdfbox-experiment/pdfbox/xmpbox/cache.aot
@@ -150,4 +202,8 @@ jobs:
             pdfbox-experiment/pdfbox/examples/cache.aot
             pdfbox-experiment/pdfbox-deps/pdfbox-jbig2/cache.aot
             pdfbox-experiment/pdfbox-deps/apache-commons-io/cache.aot
+            pdfbox-experiment/pdfbox-deps/commons-logging-workload/cache.aot
+            pdfbox-experiment/pdfbox-deps/bc-java-prov-workload/cache.aot
+            pdfbox-experiment/pdfbox-deps/bc-java-util-workload/cache.aot
+            pdfbox-experiment/pdfbox-deps/bc-java-pkix-workload/cache.aot
           if-no-files-found: error
