@@ -20,7 +20,6 @@ CACHE_PATHS=(
     "pdfbox/pdfbox/cache.aot"
     "pdfbox/preflight/cache.aot"
     "pdfbox/tools/cache.aot"
-    "pdfbox/examples/cache.aot"
     # third-party deps (pdfbox-deps/)
     "pdfbox-deps/pdfbox-jbig2/cache.aot"
     "pdfbox-deps/apache-commons-io/cache.aot"

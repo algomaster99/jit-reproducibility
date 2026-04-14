@@ -45,7 +45,6 @@ jobs:
           test -f xmpbox/cache.aot
           test -f pdfbox/cache.aot
           test -f preflight/cache.aot
-          test -f examples/cache.aot
 
       - name: Build JBIG2 cache (tree-merge)
         working-directory: pdfbox-experiment/pdfbox-deps/pdfbox-jbig2
@@ -221,7 +220,6 @@ jobs:
             echo "| pdfbox | \`pdfbox/pdfbox/cache.aot\` | $(du -h pdfbox/pdfbox/cache.aot | awk '{print $1}') |"
             echo "| preflight | \`pdfbox/preflight/cache.aot\` | $(du -h pdfbox/preflight/cache.aot | awk '{print $1}') |"
             echo "| tools | \`pdfbox/tools/cache.aot\` | $(du -h pdfbox/tools/cache.aot | awk '{print $1}') |"
-            echo "| examples | \`pdfbox/examples/cache.aot\` | $(du -h pdfbox/examples/cache.aot | awk '{print $1}') |"
             echo "| pdfbox-jbig2 | \`pdfbox-deps/pdfbox-jbig2/cache.aot\` | $(du -h pdfbox-deps/pdfbox-jbig2/cache.aot | awk '{print $1}') |"
             echo "| apache-commons-io | \`pdfbox-deps/apache-commons-io/cache.aot\` | $(du -h pdfbox-deps/apache-commons-io/cache.aot | awk '{print $1}') |"
             echo "| commons-logging-workload | \`pdfbox-deps/commons-logging-workload/cache.aot\` | $(du -h pdfbox-deps/commons-logging-workload/cache.aot | awk '{print $1}') |"
@@ -249,7 +247,6 @@ jobs:
             pdfbox-experiment/pdfbox/pdfbox/cache.aot
             pdfbox-experiment/pdfbox/preflight/cache.aot
             pdfbox-experiment/pdfbox/tools/cache.aot
-            pdfbox-experiment/pdfbox/examples/cache.aot
             pdfbox-experiment/pdfbox-deps/pdfbox-jbig2/cache.aot
             pdfbox-experiment/pdfbox-deps/apache-commons-io/cache.aot
             pdfbox-experiment/pdfbox-deps/commons-logging-workload/cache.aot
