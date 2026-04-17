@@ -2,9 +2,8 @@
 set -e
 
 # Reactor order:
-# io -> fontbox -> xmpbox -> pdfbox -> preflight -> tools -> examples
+# io -> fontbox -> pdfbox -> preflight -> tools -> examples
 # find . -type f -name "*.aot" -exec du -h {} +
-# 30MB -> 29MB  -> 33 MB  -> 53MB   -> 53MB      -> 57MB  -> 69MB
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
@@ -66,7 +65,6 @@ assert_tools_cached() {
 
 assert_tools_not_cached "io"        "io/cache.aot"
 assert_tools_not_cached "fontbox"   "fontbox/cache.aot"
-assert_tools_not_cached "xmpbox"    "xmpbox/cache.aot"
 assert_tools_not_cached "pdfbox"    "pdfbox/cache.aot"
 assert_tools_not_cached "preflight" "preflight/cache.aot"
 assert_tools_cached     "tools"     "tools/cache.aot"

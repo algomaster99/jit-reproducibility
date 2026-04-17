@@ -16,7 +16,6 @@ CACHE_PATHS=(
     # pdfbox modules (chain-built; base cache must be first in AOTMergeInputs)
     "pdfbox/io/cache.aot"
     "pdfbox/fontbox/cache.aot"
-    "pdfbox/xmpbox/cache.aot"
     "pdfbox/pdfbox/cache.aot"
     "pdfbox/tools/cache.aot"
     # third-party deps (pdfbox-deps/)
