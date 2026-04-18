@@ -49,7 +49,10 @@ log "All ${#CACHE_PATHS[@]} module caches found."
 # same bytes HotSpot archived at record time.
 CP_ENTRIES=(
     # pdfbox app fat jar covers all pdfbox module classes
-    "pdfbox/app/target/pdfbox-app-3.0.7.jar"
+    "pdfbox/io/target/classes"
+    "pdfbox/fontbox/target/classes"
+    "pdfbox/pdfbox/target/classes"
+    "pdfbox/tools/target/classes"
     # third-party deps
     "pdfbox-deps/pdfbox-jbig2/target/classes"
     "pdfbox-deps/apache-commons-io/target/classes"
