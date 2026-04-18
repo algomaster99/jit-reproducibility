@@ -5,3 +5,6 @@ target
 *.map
 hs_err_pid*.log
 workload-tmp/
+.env
+__pycache__/
+aot-analysis/pdfbox/*
