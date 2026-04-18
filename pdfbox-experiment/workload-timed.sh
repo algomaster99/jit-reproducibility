@@ -48,7 +48,7 @@ mkdir -p "$TMP"
 # ---------------------------------------------------------------------------
 # Timing helpers
 # ---------------------------------------------------------------------------
-ms() { echo $(( $(date +%s%N) / 1000000 )); }
+ms() { date +%s%N | awk '{printf "%.1f", $1/1000000}'; }
 
 measure_ms() {
   # Prints integer milliseconds, or exits on failure/timeout.
@@ -71,7 +71,8 @@ measure_ms() {
     return "$rc"
   fi
 
-  echo $(( $(ms) - start ))
+  local end; end=$(ms)
+  awk "BEGIN {printf \"%.1f\", $end - $start}"
 }
 
 declare -A minv maxv cnt samples
@@ -81,10 +82,10 @@ update_stats() {
   cnt[$key]=$(( ${cnt[$key]:-0} + 1 ))
   samples[$key]="${samples[$key]:-} ${sample_ms}"
 
-  if [ -z "${minv[$key]:-}" ] || (( sample_ms < minv[$key] )); then
+  if [ -z "${minv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} < ${minv[$key]})}"; then
     minv[$key]="$sample_ms"
   fi
-  if [ -z "${maxv[$key]:-}" ] || (( sample_ms > maxv[$key] )); then
+  if [ -z "${maxv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} > ${maxv[$key]})}"; then
     maxv[$key]="$sample_ms"
   fi
 }
@@ -308,19 +309,19 @@ run_op() {
   ms_no="$(measure_ms "$label" "no" "${cmd_no[@]}")"
   update_stats "${label}|no" "$ms_no"
   if [ "${PRINT_PER_RUN:-0}" = "1" ]; then
-    printf "  \033[1;33m%-30s\033[0m \033[0;90mno AOT  \033[0m \033[1;37m%dms\033[0m\n" "$label" "$ms_no"
+    printf "  \033[1;33m%-30s\033[0m \033[0;90mno AOT  \033[0m \033[1;37m%.1fms\033[0m\n" "$label" "$ms_no"
   fi
 
   ms_tree="$(measure_ms "$label" "tree" "${cmd_tree[@]}")"
   update_stats "${label}|tree" "$ms_tree"
   if [ "${PRINT_PER_RUN:-0}" = "1" ]; then
-    printf "  \033[1;33m%-30s\033[0m \033[0;90mAOT tree  \033[0m \033[1;37m%dms\033[0m\n" "$label" "$ms_tree"
+    printf "  \033[1;33m%-30s\033[0m \033[0;90mAOT tree  \033[0m \033[1;37m%.1fms\033[0m\n" "$label" "$ms_tree"
   fi
 
   ms_single="$(measure_ms "$label" "single" "${cmd_single[@]}")"
   update_stats "${label}|single" "$ms_single"
   if [ "${PRINT_PER_RUN:-0}" = "1" ]; then
-    printf "  \033[1;33m%-30s\033[0m \033[0;90mAOT single\033[0m \033[1;37m%dms\033[0m\n" "$label" "$ms_single"
+    printf "  \033[1;33m%-30s\033[0m \033[0;90mAOT single\033[0m \033[1;37m%.1fms\033[0m\n" "$label" "$ms_single"
   fi
 }
 
