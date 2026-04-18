@@ -42,7 +42,6 @@ jobs:
           test -f tools/cache.aot
           test -f io/cache.aot
           test -f fontbox/cache.aot
-          test -f xmpbox/cache.aot
           test -f pdfbox/cache.aot
 
       - name: Build JBIG2 cache (tree-merge)
@@ -204,7 +203,6 @@ jobs:
             echo "|---|---|---|"
             echo "| io | \`pdfbox/io/cache.aot\` | $(du -h pdfbox/io/cache.aot | awk '{print $1}') |"
             echo "| fontbox | \`pdfbox/fontbox/cache.aot\` | $(du -h pdfbox/fontbox/cache.aot | awk '{print $1}') |"
-            echo "| xmpbox | \`pdfbox/xmpbox/cache.aot\` | $(du -h pdfbox/xmpbox/cache.aot | awk '{print $1}') |"
             echo "| pdfbox | \`pdfbox/pdfbox/cache.aot\` | $(du -h pdfbox/pdfbox/cache.aot | awk '{print $1}') |"
             echo "| tools | \`pdfbox/tools/cache.aot\` | $(du -h pdfbox/tools/cache.aot | awk '{print $1}') |"
             echo "| pdfbox-jbig2 | \`pdfbox-deps/pdfbox-jbig2/cache.aot\` | $(du -h pdfbox-deps/pdfbox-jbig2/cache.aot | awk '{print $1}') |"
@@ -228,7 +226,6 @@ jobs:
             pdfbox-experiment/tree.aot
             pdfbox-experiment/pdfbox/io/cache.aot
             pdfbox-experiment/pdfbox/fontbox/cache.aot
-            pdfbox-experiment/pdfbox/xmpbox/cache.aot
             pdfbox-experiment/pdfbox/pdfbox/cache.aot
             pdfbox-experiment/pdfbox/tools/cache.aot
             pdfbox-experiment/pdfbox-deps/pdfbox-jbig2/cache.aot
