@@ -12,11 +12,17 @@ fi
 a="$(realpath "$1")"
 b="$(realpath "$2")"
 
+# Normalize hidden class names: classListWriter emits the internal Symbol form
+# (e.g. LambdaForm$DMH+0x...) while -Xlog:class+load uses external_name() which
+# converts the last '+' to '/' (e.g. LambdaForm$DMH/0x...). Normalize both sides
+# to the external form so hidden classes compare equal across the two sources.
+norm() { sed 's/+0x/\/0x/g' "$1" | sort; }
+
 count_a=$(wc -l < "$a")
 count_b=$(wc -l < "$b")
-only_a=$(comm -23 "$a" "$b" | wc -l)
-only_b=$(comm -13 "$a" "$b" | wc -l)
-intersection=$(comm -12 "$a" "$b" | wc -l)
+only_a=$(comm -23 <(norm "$a") <(norm "$b") | wc -l)
+only_b=$(comm -13 <(norm "$a") <(norm "$b") | wc -l)
+intersection=$(comm -12 <(norm "$a") <(norm "$b") | wc -l)
 union=$(( count_a + count_b - intersection ))
 
 printf "%-24s %s\n"   "A:"           "$a"
