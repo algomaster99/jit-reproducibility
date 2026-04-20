@@ -24,8 +24,11 @@ JAR_PATHS=(
   "commons-compress/target/classes"
 )
 
-for path in "${CACHE_PATHS[@]}" "${JAR_PATHS[@]}"; do
+for path in "${CACHE_PATHS[@]}"; do
   [[ -f "$path" ]] || fail "Missing required input: $path"
+done
+for path in "${JAR_PATHS[@]}"; do
+  [[ -d "$path" ]] || fail "Missing required input: $path"
 done
 
 BASE_AOT="commons-compress/cache.aot"
