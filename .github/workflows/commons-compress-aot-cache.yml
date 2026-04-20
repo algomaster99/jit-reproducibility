@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x orchestrate-combine.sh
-          combine_out=$(./orchestrate-combine.sh 2>&1)
+          combine_out=$(./orchestrate-combine.sh 2>&1) || { echo "$combine_out"; exit 1; }
           echo "$combine_out"
           combine_out_clean=$(echo "$combine_out" | sed 's/\x1B\[[0-9;]*m//g')
 
