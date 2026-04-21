@@ -83,6 +83,11 @@ run_mode_op() {
       "$JAVA_TREE_BIN" -XX:AOTCache="$AOT" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
         -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
     *)
@@ -136,6 +141,11 @@ print_class_load_row() {
       "$JAVA_TREE_BIN" -Xlog:class+load -XX:AOTCache="$AOT" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
         -cp "$CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
       ;;
   esac

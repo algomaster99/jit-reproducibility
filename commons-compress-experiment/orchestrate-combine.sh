@@ -40,9 +40,15 @@ rm -f "$OUTPUT_AOT"
 
 log "Merging ${#CACHE_PATHS[@]} caches into $OUTPUT_AOT"
 java -Xlog:aot \
+  -Xlog:aot=info \
   -XX:AOTMode=merge \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
+  --add-opens java.base/java.lang=ALL-UNNAMED \
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens java.base/java.time=ALL-UNNAMED \
+  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+  --add-opens java.base/java.util=ALL-UNNAMED \
   -XX:AOTCache="$BASE_AOT" \
   -XX:AOTMergeInputs="$MERGE_INPUTS" \
   -XX:AOTCacheOutput="$OUTPUT_AOT" \
