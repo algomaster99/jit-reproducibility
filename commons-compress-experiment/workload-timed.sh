@@ -14,6 +14,14 @@ commons-compress/target/classes:\
 commons-compress-deps/commons-lang/target/classes:\
 commons-compress-deps/commons-codec/target/classes:\
 commons-compress-deps/apache-commons-io/target/classes"
+# single.aot was recorded against JARs (directories are rejected by stock JDKs),
+# so the single mode must use the same JAR-based classpath to avoid cache rejection.
+SINGLE_DEPS_DIR="single-aot-deps"
+SINGLE_CP="$JAR:\
+$SINGLE_DEPS_DIR/commons-compress-1.28.0.jar:\
+$SINGLE_DEPS_DIR/commons-lang3-3.20.0.jar:\
+$SINGLE_DEPS_DIR/commons-codec-1.21.0.jar:\
+$SINGLE_DEPS_DIR/commons-io-2.20.0.jar"
 MAIN="dev.compressexp.Main"
 WORK_DIR="workload-tmp"
 SINGLE_AOT="single.aot"
@@ -102,7 +110,7 @@ run_mode_op() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
     tree)
       "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
@@ -180,7 +188,7 @@ print_class_load_row() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
+        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
       ;;
     tree)
       "$JAVA_TREE_BIN" -Xlog:class+load -XX:AOTCache="$TREE_AOT" \
