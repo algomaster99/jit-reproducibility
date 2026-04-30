@@ -10,10 +10,10 @@ SINGLE_AOT="single.aot"
 SINGLE_CONF="single.aotconf"
 JAR="benchmark/target/original-benchmark-1.0-SNAPSHOT.jar"
 CP="$JAR:\
-commons-compress/target/commons-compress-1.28.0.jar:\
-commons-compress-deps/commons-lang/target/commons-lang3-3.20.0.jar:\
-commons-compress-deps/commons-codec/target/commons-codec-1.21.0.jar:\
-commons-compress-deps/apache-commons-io/target/commons-io-2.20.0.jar"
+commons-compress/target/classes:\
+commons-compress-deps/commons-lang/target/classes:\
+commons-compress-deps/commons-codec/target/classes:\
+commons-compress-deps/apache-commons-io/target/classes"
 MAIN="dev.compressexp.Main"
 WORK_DIR="workload-tmp"
 
