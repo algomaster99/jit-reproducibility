@@ -64,8 +64,7 @@ rm -f "$SINGLE_CONF"
 
 mkdir -p "$WORK_DIR"
 
-# Prepare the work directory (creates test files and archives) without recording,
-# so only zip-roundtrip is captured in the AOT cache — minimal, intentional.
+# prepare (not recorded) creates the archives that list-archives needs to read.
 java \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
@@ -76,6 +75,9 @@ java \
   --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP" "$MAIN" prepare "$WORK_DIR"
 
+# Record only list-archives: loads only reader-side classes (ZipArchiveInputStream,
+# TarArchiveInputStream). Write operations (zip/tar/gzip-roundtrip) will miss the
+# cache, making the gap vs tree.aot (trained on full test suites) clearly visible.
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
@@ -84,7 +86,7 @@ java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
   --add-opens java.base/java.time=ALL-UNNAMED \
   --add-opens java.base/java.time.chrono=ALL-UNNAMED \
   --add-opens java.base/java.util=ALL-UNNAMED \
-  -cp "$CP" "$MAIN" zip-roundtrip "$WORK_DIR"
+  -cp "$CP" "$MAIN" list-archives "$WORK_DIR"
 test -f "$SINGLE_CONF"
 
 java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
