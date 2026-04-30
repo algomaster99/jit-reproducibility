@@ -18,11 +18,19 @@ WORK_DIR="workload-tmp"
 
 MAVEN_CENTRAL="https://repo1.maven.org/maven2"
 
-declare -A DEPS=(
-  ["commons-compress-1.28.0.jar"]="$MAVEN_CENTRAL/org/apache/commons/commons-compress/1.28.0/commons-compress-1.28.0.jar"
-  ["commons-lang3-3.20.0.jar"]="$MAVEN_CENTRAL/org/apache/commons/commons-lang3/3.20.0/commons-lang3-3.20.0.jar"
-  ["commons-codec-1.21.0.jar"]="$MAVEN_CENTRAL/commons-codec/commons-codec/1.21.0/commons-codec-1.21.0.jar"
-  ["commons-io-2.20.0.jar"]="$MAVEN_CENTRAL/commons-io/commons-io/2.20.0/commons-io-2.20.0.jar"
+# Order must match SINGLE_CP in workload-timed.sh exactly — the AOT cache
+# fingerprint includes the full classpath string.
+declare -a DEP_JARS=(
+  "commons-compress-1.28.0.jar"
+  "commons-lang3-3.20.0.jar"
+  "commons-codec-1.21.0.jar"
+  "commons-io-2.20.0.jar"
+)
+declare -a DEP_URLS=(
+  "$MAVEN_CENTRAL/org/apache/commons/commons-compress/1.28.0/commons-compress-1.28.0.jar"
+  "$MAVEN_CENTRAL/org/apache/commons/commons-lang3/3.20.0/commons-lang3-3.20.0.jar"
+  "$MAVEN_CENTRAL/commons-codec/commons-codec/1.21.0/commons-codec-1.21.0.jar"
+  "$MAVEN_CENTRAL/commons-io/commons-io/2.20.0/commons-io-2.20.0.jar"
 )
 
 if [ -f "$SINGLE_AOT" ]; then
@@ -34,20 +42,21 @@ fi
 
 log "Downloading dependency JARs from Maven Central"
 mkdir -p "$DEPS_DIR"
-for jar in "${!DEPS[@]}"; do
-  dest="$DEPS_DIR/$jar"
+for i in "${!DEP_JARS[@]}"; do
+  dest="$DEPS_DIR/${DEP_JARS[$i]}"
   if [ ! -f "$dest" ]; then
-    log "  Downloading $jar"
-    curl -fsSL "${DEPS[$jar]}" -o "$dest"
+    log "  Downloading ${DEP_JARS[$i]}"
+    curl -fsSL "${DEP_URLS[$i]}" -o "$dest"
   else
-    log "  $jar already present"
+    log "  ${DEP_JARS[$i]} already present"
   fi
 done
 
-CP="$BENCH_JAR"
-for jar in "${!DEPS[@]}"; do
-  CP="$CP:$DEPS_DIR/$jar"
-done
+CP="$BENCH_JAR:\
+$DEPS_DIR/commons-compress-1.28.0.jar:\
+$DEPS_DIR/commons-lang3-3.20.0.jar:\
+$DEPS_DIR/commons-codec-1.21.0.jar:\
+$DEPS_DIR/commons-io-2.20.0.jar"
 
 log "Creating single.aot (two-step: record + create)"
 rm -f "$SINGLE_AOT"
