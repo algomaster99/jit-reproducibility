@@ -64,7 +64,9 @@ rm -f "$SINGLE_CONF"
 
 mkdir -p "$WORK_DIR"
 
-java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
+# Prepare the work directory (creates test files and archives) without recording,
+# so only zip-roundtrip is captured in the AOT cache — minimal, intentional.
+java \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -73,6 +75,16 @@ java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
   --add-opens java.base/java.time.chrono=ALL-UNNAMED \
   --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP" "$MAIN" prepare "$WORK_DIR"
+
+java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
+  --add-modules java.instrument \
+  --add-opens java.base/java.io=ALL-UNNAMED \
+  --add-opens java.base/java.lang=ALL-UNNAMED \
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens java.base/java.time=ALL-UNNAMED \
+  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+  --add-opens java.base/java.util=ALL-UNNAMED \
+  -cp "$CP" "$MAIN" zip-roundtrip "$WORK_DIR"
 test -f "$SINGLE_CONF"
 
 java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
