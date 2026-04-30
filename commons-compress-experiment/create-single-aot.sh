@@ -67,11 +67,23 @@ mkdir -p "$WORK_DIR"
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
+  --add-opens java.base/java.lang=ALL-UNNAMED \
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens java.base/java.time=ALL-UNNAMED \
+  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+  --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP" "$MAIN" prepare "$WORK_DIR"
 test -f "$SINGLE_CONF"
 
 java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
   -XX:AOTCache="$SINGLE_AOT" \
+  --add-modules java.instrument \
+  --add-opens java.base/java.io=ALL-UNNAMED \
+  --add-opens java.base/java.lang=ALL-UNNAMED \
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens java.base/java.time=ALL-UNNAMED \
+  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+  --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP"
 
 test -f "$SINGLE_AOT"
