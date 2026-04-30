@@ -69,14 +69,22 @@ jobs:
         working-directory: commons-compress-experiment/benchmark
         run: mvn package -DskipTests -q
 
-      - name: Set up default JDK 25 (no-AOT baseline)
+      - name: Set up default JDK 24 (no-AOT baseline)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: '24'
 
       - name: Capture Temurin java path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Create single.aot (default JDK)
+        working-directory: commons-compress-experiment
+        run: |
+          set -euo pipefail
+          chmod +x create-single-aot.sh
+          ./create-single-aot.sh
+          test -f single.aot
 
       - name: Re-enable custom JDK
         uses: actions/setup-java@v4
@@ -113,15 +121,17 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x workload-timed.sh
-          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_TREE_BIN="$JAVA_HOME/bin/java" ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
+          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_SINGLE_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_TREE_BIN="$JAVA_HOME/bin/java" ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
           echo "$wl_out"
           wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
 
+          single_size=$(du -h single.aot | awk '{print $1}')
           tree_size=$(du -h tree.aot | awk '{print $1}')
 
           {
-            echo "## Timed workload results (no-AOT vs tree)"
+            echo "## Timed workload results (no-AOT vs single vs tree)"
             echo
+            echo "- single.aot: ${single_size}"
             echo "- tree.aot: ${tree_size}"
             echo
             echo '```'
@@ -143,6 +153,7 @@ jobs:
             echo "| commons-codec | \`commons-compress-deps/commons-codec/cache.aot\` | $(du -h commons-compress-deps/commons-codec/cache.aot | awk '{print $1}') |"
             echo "| commons-io | \`commons-compress-deps/apache-commons-io/cache.aot\` | $(du -h commons-compress-deps/apache-commons-io/cache.aot | awk '{print $1}') |"
             echo "| commons-compress | \`commons-compress/cache.aot\` | $(du -h commons-compress/cache.aot | awk '{print $1}') |"
+            echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
             echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
@@ -153,6 +164,7 @@ jobs:
           name: commons-compress-tree-artifacts
           path: |
             commons-compress-experiment/workload-tmp/
+            commons-compress-experiment/single.aot
             commons-compress-experiment/tree.aot
             commons-compress-experiment/commons-compress/cache.aot
             commons-compress-experiment/commons-compress-deps/commons-lang/cache.aot

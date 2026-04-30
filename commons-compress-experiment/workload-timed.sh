@@ -16,23 +16,29 @@ commons-compress-deps/commons-codec/target/classes:\
 commons-compress-deps/apache-commons-io/target/classes"
 MAIN="dev.compressexp.Main"
 WORK_DIR="workload-tmp"
-AOT="tree.aot"
+SINGLE_AOT="single.aot"
+TREE_AOT="tree.aot"
 RUNS="${RUNS:-10}"
 OP_TIMEOUT_SEC="${OP_TIMEOUT_SEC:-900}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
+JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
 JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
 OPS=("zip-roundtrip" "tar-roundtrip" "gzip-roundtrip" "list-archives")
 
 [[ -f "$JAR" ]] || fail "$JAR not found — run: cd benchmark && mvn package -DskipTests"
-[[ -f "$AOT" ]] || fail "tree.aot not found — run orchestrate-combine.sh first"
+[[ -f "$SINGLE_AOT" ]] || fail "single.aot not found — run create-single-aot.sh first"
+[[ -f "$TREE_AOT" ]] || fail "tree.aot not found — run orchestrate-combine.sh first"
 
 mkdir -p "$WORK_DIR"
 
 log "Java version(s):"
-echo "no-AOT java:   $JAVA_NO_BIN"
+echo "no-AOT java:     $JAVA_NO_BIN"
 "$JAVA_NO_BIN" -version
 echo
-echo "tree-AOT java: $JAVA_TREE_BIN"
+echo "single-AOT java: $JAVA_SINGLE_BIN"
+"$JAVA_SINGLE_BIN" -version
+echo
+echo "tree-AOT java:   $JAVA_TREE_BIN"
 "$JAVA_TREE_BIN" -version
 echo
 
@@ -87,8 +93,19 @@ run_mode_op() {
         --add-opens java.base/java.util=ALL-UNNAMED \
         -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
+    single)
+      "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" \
+        --add-modules java.instrument \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
     tree)
-      "$JAVA_TREE_BIN" -XX:AOTCache="$AOT" \
+      "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -125,13 +142,14 @@ print_summary() {
   echo
   log "Aggregated timing over ${RUNS} runs (ms)"
   sep
-  printf "  %-16s | %10s %6s %6s | %10s %6s %6s\n" \
-    "Operation" "no-med" "no-min" "no-max" "tree-med" "tree-min" "tree-max"
+  printf "  %-16s | %10s %6s %6s | %12s %8s %8s | %10s %6s %6s\n" \
+    "Operation" "no-med" "no-min" "no-max" "single-med" "single-min" "single-max" "tree-med" "tree-min" "tree-max"
   local op
   for op in "${OPS[@]}"; do
-    printf "  %-16s | %10s %6s %6s | %10s %6s %6s\n" \
+    printf "  %-16s | %10s %6s %6s | %12s %8s %8s | %10s %6s %6s\n" \
       "$op" \
       "$(median_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" \
+      "$(median_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" \
       "$(median_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}"
   done
 }
@@ -153,8 +171,19 @@ print_class_load_row() {
         --add-opens java.base/java.util=ALL-UNNAMED \
         -cp "$CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
       ;;
+    single)
+      "$JAVA_SINGLE_BIN" -Xlog:class+load -XX:AOTCache="$SINGLE_AOT" \
+        --add-modules java.instrument \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
+      ;;
     tree)
-      "$JAVA_TREE_BIN" -Xlog:class+load -XX:AOTCache="$AOT" \
+      "$JAVA_TREE_BIN" -Xlog:class+load -XX:AOTCache="$TREE_AOT" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -166,7 +195,7 @@ print_class_load_row() {
       ;;
   esac
 
-  printf "  %-16s | %-4s | %8s | %8s\n" \
+  printf "  %-16s | %-6s | %8s | %8s\n" \
     "$op" "$mode" \
     "$(awk '/source: file:/{count++} END{print count+0}' "$classload_log")" \
     "$(awk '/source: shared object[s]? file/{count++} END{print count+0}' "$classload_log")"
@@ -177,6 +206,8 @@ for RUN_IDX in $(seq 1 "$RUNS"); do
   for op in "${OPS[@]}"; do
     no_ms=$(measure_ms "$op" "no" run_mode_op "no" "$op")
     update_stats "${op}|no" "$no_ms"
+    single_ms=$(measure_ms "$op" "single" run_mode_op "single" "$op")
+    update_stats "${op}|single" "$single_ms"
     tree_ms=$(measure_ms "$op" "tree" run_mode_op "tree" "$op")
     update_stats "${op}|tree" "$tree_ms"
   done
@@ -187,9 +218,10 @@ print_summary
 echo
 log "Class-load source summary per workload"
 sep
-printf "  %-16s | %-4s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
+printf "  %-16s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
 for op in "${OPS[@]}"; do
   print_class_load_row "no" "$op"
+  print_class_load_row "single" "$op"
   print_class_load_row "tree" "$op"
   echo "--------------------------------"
 done
