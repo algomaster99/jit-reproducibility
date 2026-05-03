@@ -15,15 +15,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Set up JDK 24 (no-AOT baseline)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '24'
-
-      - name: Save JDK 24 path
-        run: echo "JAVA24_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
-
       - name: Download custom JDK
         uses: ./.github/actions/download-custom-jdk
 
@@ -78,13 +69,29 @@ jobs:
         working-directory: commons-compress-experiment/benchmark
         run: mvn package -DskipTests -q
 
-      - name: Create single.aot (custom JDK)
+      - name: Set up JDK 24 (no-AOT baseline and single.aot)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '24'
+
+      - name: Capture Temurin JDK path
+        run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Create single.aot (JDK 24)
         working-directory: commons-compress-experiment
         run: |
           set -euo pipefail
           chmod +x create-single-aot.sh
           ./create-single-aot.sh
           test -f single.aot
+
+      - name: Re-enable custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
 
       - name: Create tree.aot (orchestrate-combine.sh)
         working-directory: commons-compress-experiment
@@ -114,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x workload-timed.sh
-          wl_out=$(JAVA_NO_BIN="$JAVA24_HOME/bin/java" JAVA_SINGLE_BIN="$JAVA_HOME/bin/java" JAVA_TREE_BIN="$JAVA_HOME/bin/java" ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
+          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_SINGLE_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_TREE_BIN="$JAVA_HOME/bin/java" ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
           echo "$wl_out"
           wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
 
