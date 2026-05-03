@@ -75,9 +75,10 @@ java \
   --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP" "$MAIN" prepare "$WORK_DIR"
 
-# Record only list-archives: loads only reader-side classes (ZipArchiveInputStream,
-# TarArchiveInputStream). Write operations (zip/tar/gzip-roundtrip) will miss the
-# cache, making the gap vs tree.aot (trained on full test suites) clearly visible.
+# Record only gzip-roundtrip: loads only GzipCompressor{In,Out}putStream — no
+# ZipArchive* or TarArchive* classes. zip-roundtrip, tar-roundtrip, and
+# list-archives will all miss the cache, maximising the gap vs tree.aot (which
+# was trained on the full test suite covering all four ops).
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
@@ -86,7 +87,7 @@ java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
   --add-opens java.base/java.time=ALL-UNNAMED \
   --add-opens java.base/java.time.chrono=ALL-UNNAMED \
   --add-opens java.base/java.util=ALL-UNNAMED \
-  -cp "$CP" "$MAIN" list-archives "$WORK_DIR"
+  -cp "$CP" "$MAIN" gzip-roundtrip "$WORK_DIR"
 test -f "$SINGLE_CONF"
 
 java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
