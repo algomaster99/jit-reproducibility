@@ -84,6 +84,7 @@ assert_cached "commons-logging" "org.apache.commons.logging" || ERRORS=$((ERRORS
 if [ "$ERRORS" -eq 0 ]; then
     log "All checks passed; tree.aot covers all expected dependency groups."
 else
+    echo -e "\033[1;31m[FAIL] One or more expected classes were not loaded from AOT.\033[0m" >&2
     echo -e "\033[1;31m$ERRORS check(s) failed.\033[0m" >&2
     exit 1
 fi

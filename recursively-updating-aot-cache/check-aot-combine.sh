@@ -64,8 +64,8 @@ check_combined() {
         return 0
     fi
 
+    echo -e "  [$FAIL] One or more expected classes were not loaded from AOT."
     return 1
 }
 
 check_combined
-
