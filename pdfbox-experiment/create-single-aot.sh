@@ -18,7 +18,7 @@ if [ -f "$SINGLE_AOT" ]; then
 fi
 
 log "Creating single.aot (two-step: record + create)"
-log "Training workload: render (heavy Java2D/font path, different from crypto/text ops)"
+log "Training workload: fromtext (intentionally different from the benchmark ops)"
 rm -f "$SINGLE_AOT"
 rm -f "$SINGLE_CONF"
 
@@ -27,11 +27,17 @@ test -f "$TEST_PDF" || { echo "Missing $TEST_PDF" >&2; exit 1; }
 
 mkdir -p "$TMP"
 
+# Generate the text input that fromtext needs, without AOT recording.
+java -jar "$SINGLE_JAR" export:text --input "$TEST_PDF" --output "$TMP/single-aot-text.txt"
+test -f "$TMP/single-aot-text.txt"
+
 java -Xlog:aot -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" -jar "$SINGLE_JAR" \
-    render --input "$TEST_PDF"
+    fromtext --input "$TMP/single-aot-text.txt" \
+             --output "$TMP/single-aot-from-text.pdf" \
+             -standardFont Times-Roman
 test -f "$SINGLE_CONF"
 
 java -Xlog:aot -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" -XX:AOTCache="$SINGLE_AOT" -cp "$SINGLE_JAR"
 
 test -f "$SINGLE_AOT"
-log "single.aot created (trained on render)."
+log "single.aot created (trained on fromtext)."
