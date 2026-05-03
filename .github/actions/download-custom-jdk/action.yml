@@ -7,4 +7,4 @@ runs:
       shell: bash
       run: |
         curl -L -o jdk-custom.tar.gz \
-          "https://github.com/algomaster99/jdk/releases/download/jdk-supply-chain-aotcache-644bd633f8a/jdk-supply-chain-aotcache-644bd633f8a.tar.gz"
+          "https://github.com/algomaster99/jdk/releases/download/jdk-supply-chain-aotcache-30264e422b1/jdk-supply-chain-aotcache-30264e422b1.tar.gz"
