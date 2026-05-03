@@ -49,12 +49,15 @@ log "All ${#CACHE_PATHS[@]} module caches found."
 # same bytes HotSpot archived at record time.
 CP_ENTRIES=(
     # pdfbox app fat jar covers all pdfbox module classes
+    ## mvn clean package -Ptree-merge
     "pdfbox/io/target/classes"
     "pdfbox/fontbox/target/classes"
     "pdfbox/pdfbox/target/classes"
     "pdfbox/tools/target/classes"
     # third-party deps
+    ## mvn clean test -Ptree-merge
     "pdfbox-deps/pdfbox-jbig2/target/classes"
+    ## mvn clean package -Ptree-merge
     "pdfbox-deps/apache-commons-io/target/classes"
     "pdfbox-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar"
     # BouncyCastle
