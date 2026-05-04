@@ -169,18 +169,28 @@ print_summary() {
 print_class_load_row() {
   local mode="$1"; local label="$2"; shift 2
   local classload_log="$TMP/classload-${label//:/-}-${mode}.log"
+  local aotlink_log="$TMP/aotlink-${label//:/-}-${mode}.log"
   local file_count shared_count
   local -a cmd
 
   case "$mode" in
     no)
-      cmd=("$JAVA_NO_BIN" -Xlog:class+load -cp "$CP" "$MAIN" "$@")
+      cmd=("$JAVA_NO_BIN"
+        -Xlog:class+load:file="$classload_log"
+        -Xlog:aot+link:file="$aotlink_log"
+        -cp "$CP" "$MAIN" "$@")
       ;;
     tree)
-      cmd=("$JAVA_TREE_BIN" -Xlog:class+load -XX:AOTCache="$AOT" -cp "$CP" "$MAIN" "$@")
+      cmd=("$JAVA_TREE_BIN" -XX:AOTCache="$AOT"
+        -Xlog:class+load:file="$classload_log"
+        -Xlog:aot+link:file="$aotlink_log"
+        -cp "$CP" "$MAIN" "$@")
       ;;
     single)
-      cmd=("$JAVA_SINGLE_BIN" -Xlog:class+load -XX:AOTCache="$SINGLE_AOT" -cp "$CP" "$MAIN" "$@")
+      cmd=("$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT"
+        -Xlog:class+load:file="$classload_log"
+        -Xlog:aot+link:file="$aotlink_log"
+        -cp "$CP" "$MAIN" "$@")
       ;;
     *)
       echo "Unknown class-load mode: $mode" >&2
@@ -188,7 +198,7 @@ print_class_load_row() {
       ;;
   esac
 
-  "${cmd[@]}" >"$classload_log" 2>&1
+  "${cmd[@]}"
 
   file_count="$(awk '/source: file:/{count++} END{print count+0}' "$classload_log")"
   shared_count="$(awk '/source: shared object[s]? file/{count++} END{print count+0}' "$classload_log")"

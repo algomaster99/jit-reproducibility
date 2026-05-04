@@ -166,10 +166,12 @@ print_class_load_row() {
   local mode="$1"
   local op="$2"
   local classload_log="$WORK_DIR/classload-${op}-${mode}.log"
+  local aotlink_log="$WORK_DIR/aotlink-${op}-${mode}.log"
 
   case "$mode" in
     no)
-      "$JAVA_NO_BIN" -Xlog:class+load \
+      "$JAVA_NO_BIN" -Xlog:class+load:file="$classload_log" \
+        -Xlog:aot+link:file="$aotlink_log" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -177,10 +179,12 @@ print_class_load_row() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
     single)
-      "$JAVA_SINGLE_BIN" -Xlog:class+load -XX:AOTCache="$SINGLE_AOT" \
+      "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" \
+        -Xlog:class+load:file="$classload_log" \
+        -Xlog:aot+link:file="$aotlink_log" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -188,10 +192,12 @@ print_class_load_row() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
+        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
     tree)
-      "$JAVA_TREE_BIN" -Xlog:class+load -XX:AOTCache="$TREE_AOT" \
+      "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
+        -Xlog:class+load:file="$classload_log" \
+        -Xlog:aot+link:file="$aotlink_log" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -199,7 +205,7 @@ print_class_load_row() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR" >"$classload_log" 2>&1
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
   esac
 
