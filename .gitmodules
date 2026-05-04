@@ -25,3 +25,9 @@
 	path = commons-compress-experiment/commons-compress-deps/commons-lang
 	url = git@github.com:algomaster99/commons-lang.git
 	branch = aotcache-setup
+[submodule "commons-configuration-experiment/commons-configuration-deps/commons-lang"]
+	path = commons-configuration-experiment/commons-configuration-deps/commons-lang
+	url = git@github.com:algomaster99/commons-lang.git
+[submodule "commons-configuration-experiment/commons-configuration-deps/commons-text"]
+	path = commons-configuration-experiment/commons-configuration-deps/commons-text
+	url = git@github.com:algomaster99/commons-text.git

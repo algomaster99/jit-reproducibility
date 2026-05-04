@@ -1,0 +1,230 @@
+#!/bin/bash
+set -euo pipefail
+
+log()  { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
+sep()  { echo -e "\033[0;90m  $(printf '─%.0s' {1..60})\033[0m"; }
+fail() { echo -e "\033[1;31mERROR: $*\033[0m" >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+JAR="benchmark/target/original-benchmark-1.0-SNAPSHOT.jar"
+CP="$JAR:\
+commons-configuration/target/classes:\
+commons-configuration-deps/commons-lang/target/classes:\
+commons-configuration-deps/commons-text/target/classes:\
+commons-configuration-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar"
+# single.aot was recorded against JARs (directories are rejected by stock JDKs),
+# so the single mode must use the same JAR-based classpath to avoid cache rejection.
+SINGLE_DEPS_DIR="single-aot-deps"
+SINGLE_CP="$JAR:\
+$SINGLE_DEPS_DIR/commons-configuration2-2.14.0.jar:\
+$SINGLE_DEPS_DIR/commons-lang3-3.20.0.jar:\
+$SINGLE_DEPS_DIR/commons-text-1.15.0.jar:\
+$SINGLE_DEPS_DIR/commons-logging-1.3.6.jar"
+MAIN="dev.configexp.Main"
+WORK_DIR="workload-tmp"
+SINGLE_AOT="single.aot"
+TREE_AOT="tree.aot"
+RUNS="${RUNS:-10}"
+JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
+JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
+JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
+OPS=("properties-read" "xml-read" "composite-read" "interpolation")
+
+[[ -f "$JAR" ]] || fail "$JAR not found — run: cd benchmark && mvn package -DskipTests"
+[[ -f "$SINGLE_AOT" ]] || fail "single.aot not found — run create-single-aot.sh first"
+[[ -f "$TREE_AOT" ]] || fail "tree.aot not found — run orchestrate-combine.sh first"
+
+mkdir -p "$WORK_DIR"
+
+log "Java version(s):"
+echo "no-AOT java:     $JAVA_NO_BIN"
+"$JAVA_NO_BIN" -version
+echo
+echo "single-AOT java: $JAVA_SINGLE_BIN"
+"$JAVA_SINGLE_BIN" -version
+echo
+echo "tree-AOT java:   $JAVA_TREE_BIN"
+"$JAVA_TREE_BIN" -version
+echo
+
+"$JAVA_NO_BIN" -cp "$CP" "$MAIN" prepare "$WORK_DIR" >/dev/null
+
+ms() { date +%s%N | awk '{printf "%.1f", $1/1000000}'; }
+
+declare -A minv maxv cnt samples
+
+update_stats() {
+  local key="$1"
+  local sample_ms="$2"
+  cnt[$key]=$(( ${cnt[$key]:-0} + 1 ))
+  samples[$key]="${samples[$key]:-} ${sample_ms}"
+  if [ -z "${minv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} < ${minv[$key]})}"; then
+    minv[$key]="$sample_ms"
+  fi
+  if [ -z "${maxv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} > ${maxv[$key]})}"; then
+    maxv[$key]="$sample_ms"
+  fi
+}
+
+median_for_key() {
+  local key="$1"
+  local values="${samples[$key]# }"
+  printf "%s\n" $values | sort -n | awk '
+    { a[++n] = $1 }
+    END {
+      if (n == 0) {
+        print "n/a"
+      } else if (n % 2 == 1) {
+        printf "%.1f", a[(n + 1) / 2]
+      } else {
+        printf "%.1f", (a[n / 2] + a[(n / 2) + 1]) / 2
+      }
+    }
+  '
+}
+
+run_mode_op() {
+  local mode="$1"
+  local op="$2"
+  case "$mode" in
+    no)
+      "$JAVA_NO_BIN" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    single)
+      "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    tree)
+      "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    *)
+      fail "Unknown mode: $mode"
+      ;;
+  esac
+}
+
+measure_ms() {
+  local op="$1"
+  local mode="$2"
+  shift 2
+  local err_file="$WORK_DIR/${RUN_IDX:-0}-${op}-${mode}.stderr.log"
+  local start end rc
+  start=$(ms)
+  "$@" >/dev/null 2>"$err_file"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "ERROR: failed (op=$op mode=$mode rc=$rc) see $err_file" >&2
+    return "$rc"
+  fi
+  end=$(ms)
+  awk "BEGIN {printf \"%.1f\", $end - $start}"
+}
+
+print_summary() {
+  echo
+  log "Aggregated timing over ${RUNS} runs (ms)"
+  sep
+  printf "  %-16s | %10s %6s %6s | %12s %8s %8s | %10s %6s %6s\n" \
+    "Operation" "no-med" "no-min" "no-max" "single-med" "single-min" "single-max" "tree-med" "tree-min" "tree-max"
+  local op
+  for op in "${OPS[@]}"; do
+    printf "  %-16s | %10s %6s %6s | %12s %8s %8s | %10s %6s %6s\n" \
+      "$op" \
+      "$(median_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" \
+      "$(median_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" \
+      "$(median_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}"
+  done
+}
+
+print_class_load_row() {
+  local mode="$1"
+  local op="$2"
+  local classload_log="$WORK_DIR/classload-${op}-${mode}.log"
+
+  case "$mode" in
+    no)
+      "$JAVA_NO_BIN" -Xlog:class+load:file="$classload_log" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    single)
+      "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" \
+        -Xlog:class+load:file="$classload_log" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    tree)
+      "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
+        -Xlog:class+load:file="$classload_log" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+  esac
+
+  printf "  %-16s | %-6s | %8s | %8s\n" \
+    "$op" "$mode" \
+    "$(awk '/source: file:/{count++} END{print count+0}' "$classload_log")" \
+    "$(awk '/source: shared object[s]? file/{count++} END{print count+0}' "$classload_log")"
+}
+
+log "Running Commons Configuration workload RUNS=$RUNS"
+for RUN_IDX in $(seq 1 "$RUNS"); do
+  for op in "${OPS[@]}"; do
+    no_ms=$(measure_ms "$op" "no" run_mode_op "no" "$op")
+    update_stats "${op}|no" "$no_ms"
+    single_ms=$(measure_ms "$op" "single" run_mode_op "single" "$op")
+    update_stats "${op}|single" "$single_ms"
+    tree_ms=$(measure_ms "$op" "tree" run_mode_op "tree" "$op")
+    update_stats "${op}|tree" "$tree_ms"
+  done
+done
+
+print_summary
+
+echo
+log "Class-load source summary per workload"
+sep
+printf "  %-16s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
+for op in "${OPS[@]}"; do
+  print_class_load_row "no" "$op"
+  print_class_load_row "single" "$op"
+  print_class_load_row "tree" "$op"
+  echo "--------------------------------"
+done

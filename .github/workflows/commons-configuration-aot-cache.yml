@@ -1,0 +1,181 @@
+name: Commons Configuration Distributed AOT Cache
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tree-combine:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Download custom JDK
+        uses: ./.github/actions/download-custom-jdk
+
+      - name: Set up custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build commons-lang3 cache (tree-merge)
+        working-directory: commons-configuration-experiment/commons-configuration-deps/commons-lang
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build commons-text cache (tree-merge)
+        working-directory: commons-configuration-experiment/commons-configuration-deps/commons-text
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build commons-logging cache (workload jar)
+        working-directory: commons-configuration-experiment/commons-configuration-deps/commons-logging-workload
+        run: |
+          set -euo pipefail
+          mvn package -q
+          java -XX:AOTCacheOutput=cache.aot \
+            --add-opens java.base/java.io=ALL-UNNAMED \
+            --add-opens java.base/java.lang=ALL-UNNAMED \
+            --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+            --add-opens java.base/java.time=ALL-UNNAMED \
+            --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+            --add-opens java.base/java.util=ALL-UNNAMED \
+            -jar target/commons-logging-workload-1.0-SNAPSHOT.jar
+          test -f cache.aot
+
+      - name: Build commons-configuration cache (tree-merge)
+        working-directory: commons-configuration-experiment/commons-configuration
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build benchmark fat jar
+        working-directory: commons-configuration-experiment/benchmark
+        run: mvn package -DskipTests -q
+
+      - name: Set up JDK 25 (no-AOT baseline and single.aot)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Capture Temurin JDK path
+        run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Create single.aot (JDK 25)
+        working-directory: commons-configuration-experiment
+        run: |
+          set -euo pipefail
+          chmod +x create-single-aot.sh
+          ./create-single-aot.sh
+          test -f single.aot
+
+      - name: Re-enable custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Create tree.aot (orchestrate-combine.sh)
+        working-directory: commons-configuration-experiment
+        run: |
+          set -euo pipefail
+          chmod +x orchestrate-combine.sh
+          combine_out=$(./orchestrate-combine.sh 2>&1) || { echo "$combine_out"; exit 1; }
+          echo "$combine_out"
+          combine_out_clean=$(echo "$combine_out" | sed 's/\x1B\[[0-9;]*m//g')
+
+          tree_size=$(du -h tree.aot | awk '{print $1}')
+
+          {
+            echo "## tree.aot creation (orchestrate-combine)"
+            echo
+            echo "- tree.aot: ${tree_size}"
+            echo
+            echo '```'
+            echo "$combine_out_clean"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          test -f tree.aot
+
+      - name: Run timed workload
+        working-directory: commons-configuration-experiment
+        run: |
+          set -euo pipefail
+          chmod +x workload-timed.sh
+          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_SINGLE_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_TREE_BIN="$JAVA_HOME/bin/java" ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
+          echo "$wl_out"
+          wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
+
+          single_size=$(du -h single.aot | awk '{print $1}')
+          tree_size=$(du -h tree.aot | awk '{print $1}')
+
+          {
+            echo "## Timed workload results (no-AOT vs single vs tree)"
+            echo
+            echo "- single.aot: ${single_size}"
+            echo "- tree.aot: ${tree_size}"
+            echo
+            echo '```'
+            echo "$wl_out_clean"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write artifact summary
+        working-directory: commons-configuration-experiment
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Distributed AOT artifact summary"
+            echo
+            echo "| Artifact | Cache path | Size |"
+            echo "|---|---|---|"
+            echo "| commons-lang3 | \`commons-configuration-deps/commons-lang/cache.aot\` | $(du -h commons-configuration-deps/commons-lang/cache.aot | awk '{print $1}') |"
+            echo "| commons-text | \`commons-configuration-deps/commons-text/cache.aot\` | $(du -h commons-configuration-deps/commons-text/cache.aot | awk '{print $1}') |"
+            echo "| commons-logging | \`commons-configuration-deps/commons-logging-workload/cache.aot\` | $(du -h commons-configuration-deps/commons-logging-workload/cache.aot | awk '{print $1}') |"
+            echo "| commons-configuration | \`commons-configuration/cache.aot\` | $(du -h commons-configuration/cache.aot | awk '{print $1}') |"
+            echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
+            echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Commons Configuration workload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: commons-configuration-tree-artifacts
+          path: |
+            commons-configuration-experiment/workload-tmp/
+            commons-configuration-experiment/aotlink-tree-create.log
+            commons-configuration-experiment/single.aot
+            commons-configuration-experiment/tree.aot
+            commons-configuration-experiment/commons-configuration/cache.aot
+            commons-configuration-experiment/commons-configuration-deps/commons-lang/cache.aot
+            commons-configuration-experiment/commons-configuration-deps/commons-text/cache.aot
+            commons-configuration-experiment/commons-configuration-deps/commons-logging-workload/cache.aot
+          if-no-files-found: error
