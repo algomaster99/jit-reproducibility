@@ -100,16 +100,16 @@ jobs:
           test -f pdfbox-deps/bc-java-util-workload/cache.aot
           test -f pdfbox-deps/bc-java-pkix-workload/cache.aot
 
-      - name: Set up default JDK 24 (single.aot and baseline workload)
+      - name: Set up default JDK 25 (single.aot and baseline workload)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '24'
+          java-version: '25'
 
       - name: Capture Temurin java path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
-      - name: Create single.aot (default JDK)
+      - name: Create single.aot (JDK 25)
         working-directory: pdfbox-experiment
         run: |
           set -euo pipefail
