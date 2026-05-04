@@ -13,6 +13,8 @@ CP="$JAR:\
 commons-configuration/target/classes:\
 commons-configuration-deps/commons-lang/target/classes:\
 commons-configuration-deps/commons-text/target/classes:\
+commons-configuration-deps/commons-beanutils/target/classes:\
+commons-configuration-deps/commons-collections/target/classes:\
 commons-configuration-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar"
 # single.aot was recorded against JARs (directories are rejected by stock JDKs),
 # so the single mode must use the same JAR-based classpath to avoid cache rejection.
