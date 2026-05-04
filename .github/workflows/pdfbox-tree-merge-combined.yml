@@ -222,6 +222,7 @@ jobs:
           name: pdfbox-tree-artifacts
           path: |
             pdfbox-experiment/workload-tmp/
+            pdfbox-experiment/aotlink-tree-create.log
             pdfbox-experiment/single.aot
             pdfbox-experiment/tree.aot
             pdfbox-experiment/pdfbox/io/cache.aot

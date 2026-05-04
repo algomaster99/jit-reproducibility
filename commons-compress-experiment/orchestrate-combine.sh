@@ -41,6 +41,7 @@ rm -f "$OUTPUT_AOT"
 log "Merging ${#CACHE_PATHS[@]} caches into $OUTPUT_AOT"
 java -Xlog:aot \
   -Xlog:aot=info \
+  -Xlog:aot+link:file="aotlink-tree-create.log" \
   -XX:AOTMode=merge \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \

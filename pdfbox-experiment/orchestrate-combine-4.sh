@@ -76,6 +76,7 @@ log "Creating $OUTPUT_AOT (base=pdfbox/pdfbox/cache.aot, ${#CACHE_PATHS[@]} inpu
 rm -f "$OUTPUT_AOT"
 
 java -Xlog:aot \
+    -Xlog:aot+link:file="aotlink-tree-create.log" \
     -XX:AOTMode=merge \
     -XX:AOTCache="$BASE_AOT" \
     -XX:AOTMergeInputs="$MERGE_INPUTS" \

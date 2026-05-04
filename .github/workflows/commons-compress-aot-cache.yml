@@ -164,6 +164,7 @@ jobs:
           name: commons-compress-tree-artifacts
           path: |
             commons-compress-experiment/workload-tmp/
+            commons-compress-experiment/aotlink-tree-create.log
             commons-compress-experiment/single.aot
             commons-compress-experiment/tree.aot
             commons-compress-experiment/commons-compress/cache.aot
