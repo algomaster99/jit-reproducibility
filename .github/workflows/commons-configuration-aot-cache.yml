@@ -92,16 +92,16 @@ jobs:
         working-directory: commons-configuration-experiment/benchmark
         run: mvn package -DskipTests -q
 
-      - name: Set up JDK 25 (no-AOT baseline and single.aot)
+      - name: Set up JDK 24 (no-AOT baseline and single.aot)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: '24'
 
       - name: Capture Temurin JDK path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
-      - name: Create single.aot (JDK 25)
+      - name: Create single.aot (JDK 24)
         working-directory: commons-configuration-experiment
         run: |
           set -euo pipefail
