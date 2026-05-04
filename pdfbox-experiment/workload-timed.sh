@@ -8,7 +8,6 @@ sep()  { echo -e "\033[0;90m  $(printf '─%.0s' {1..60})\033[0m"; }
 JAR="pdfbox/app/target/pdfbox-app-3.0.7.jar"
 MAIN="org.apache.pdfbox.tools.PDFBox"
 PDF="pdfbox/test.pdf"
-FORM_PDF="pdfbox/examples/target/SimpleForm.pdf"
 BASE="test"
 TMP="workload-tmp"
 AOT="tree.aot"
@@ -30,11 +29,6 @@ fi
 
 if [ ! -f "$SINGLE_AOT" ]; then
   echo "single.aot not found" >&2
-  exit 1
-fi
-
-if [ ! -f "$FORM_PDF" ]; then
-  echo "form PDF not found: $FORM_PDF (build the examples module first)" >&2
   exit 1
 fi
 
@@ -126,7 +120,7 @@ print_summary() {
   local runs="$1"
 
   # Operation labels (must match the workload below).
-  local -a ops=("encrypt" "decrypt" "export:text" "export:images" "render" "fromtext" "split" "merge" "decode" "overlay" "export:fdf" "import:fdf")
+  local -a ops=("encrypt" "decrypt" "export:text" "export:images" "render" "fromtext" "split" "merge" "decode" "overlay")
 
   echo
   log "Aggregated timing over ${runs} runs (ms)"
@@ -304,24 +298,6 @@ print_class_load_summary() {
   print_class_load_row "single" "overlay" \
     overlay -default "$PDF" --input "$PDF" --output "$TMP/$BASE-overlay.pdf"
 
-  echo "--------------------------------"
-
-  print_class_load_row "no" "export:fdf" \
-    export:fdf --input "$FORM_PDF" --output "$TMP/$BASE-form.fdf"
-  print_class_load_row "tree" "export:fdf" \
-    export:fdf --input "$FORM_PDF" --output "$TMP/$BASE-form.fdf"
-  print_class_load_row "single" "export:fdf" \
-    export:fdf --input "$FORM_PDF" --output "$TMP/$BASE-form.fdf"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "import:fdf" \
-    import:fdf --input "$FORM_PDF" --data "$TMP/$BASE-form.fdf" --output "$TMP/$BASE-form-filled.pdf"
-  print_class_load_row "tree" "import:fdf" \
-    import:fdf --input "$FORM_PDF" --data "$TMP/$BASE-form.fdf" --output "$TMP/$BASE-form-filled.pdf"
-  print_class_load_row "single" "import:fdf" \
-    import:fdf --input "$FORM_PDF" --data "$TMP/$BASE-form.fdf" --output "$TMP/$BASE-form-filled.pdf"
-
   info "raw class-load logs: $TMP/classload-*-{no,tree,single}.log"
   echo
 }
@@ -406,12 +382,6 @@ workload_once() {
 
   run_op "overlay" \
     overlay -default "$PDF" --input "$PDF" --output "$TMP/$BASE-overlay.pdf"
-
-  run_op "export:fdf" \
-    export:fdf --input "$FORM_PDF" --output "$TMP/$BASE-form.fdf"
-
-  run_op "import:fdf" \
-    import:fdf --input "$FORM_PDF" --data "$TMP/$BASE-form.fdf" --output "$TMP/$BASE-form-filled.pdf"
 }
 
 log "Running workload ${RUNS} times (aggregate)"
