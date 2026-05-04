@@ -37,3 +37,11 @@
 	path = commons-configuration-experiment/commons-configuration
 	url = git@github.com:algomaster99/commons-configuration.git
 	branch = aotcache-setup
+[submodule "commons-configuration-experiment/commons-configuration-deps/commons-beanutils"]
+	path = commons-configuration-experiment/commons-configuration-deps/commons-beanutils
+	url = git@github.com:algomaster99/commons-beanutils.git
+	branch = aotcache-setup
+[submodule "commons-configuration-experiment/commons-configuration-deps/commons-collections"]
+	path = commons-configuration-experiment/commons-configuration-deps/commons-collections
+	url = git@github.com:algomaster99/commons-collections.git
+	branch = aotcache-setup

@@ -49,6 +49,22 @@ jobs:
           mvn clean test -Ptree-merge -q
           test -f cache.aot
 
+      - name: Build commons-beanutils cache (tree-merge)
+        working-directory: commons-configuration-experiment/commons-configuration-deps/commons-beanutils
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build commons-collections cache (tree-merge)
+        working-directory: commons-configuration-experiment/commons-configuration-deps/commons-collections
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
       - name: Build commons-logging cache (workload jar)
         working-directory: commons-configuration-experiment/commons-configuration-deps/commons-logging-workload
         run: |
@@ -158,6 +174,8 @@ jobs:
             echo "|---|---|---|"
             echo "| commons-lang3 | \`commons-configuration-deps/commons-lang/cache.aot\` | $(du -h commons-configuration-deps/commons-lang/cache.aot | awk '{print $1}') |"
             echo "| commons-text | \`commons-configuration-deps/commons-text/cache.aot\` | $(du -h commons-configuration-deps/commons-text/cache.aot | awk '{print $1}') |"
+            echo "| commons-beanutils | \`commons-configuration-deps/commons-beanutils/cache.aot\` | $(du -h commons-configuration-deps/commons-beanutils/cache.aot | awk '{print $1}') |"
+            echo "| commons-collections | \`commons-configuration-deps/commons-collections/cache.aot\` | $(du -h commons-configuration-deps/commons-collections/cache.aot | awk '{print $1}') |"
             echo "| commons-logging | \`commons-configuration-deps/commons-logging-workload/cache.aot\` | $(du -h commons-configuration-deps/commons-logging-workload/cache.aot | awk '{print $1}') |"
             echo "| commons-configuration | \`commons-configuration/cache.aot\` | $(du -h commons-configuration/cache.aot | awk '{print $1}') |"
             echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
@@ -177,5 +195,7 @@ jobs:
             commons-configuration-experiment/commons-configuration/cache.aot
             commons-configuration-experiment/commons-configuration-deps/commons-lang/cache.aot
             commons-configuration-experiment/commons-configuration-deps/commons-text/cache.aot
+            commons-configuration-experiment/commons-configuration-deps/commons-beanutils/cache.aot
+            commons-configuration-experiment/commons-configuration-deps/commons-collections/cache.aot
             commons-configuration-experiment/commons-configuration-deps/commons-logging-workload/cache.aot
           if-no-files-found: error

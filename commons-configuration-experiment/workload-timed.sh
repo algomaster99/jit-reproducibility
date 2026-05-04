@@ -21,7 +21,9 @@ SINGLE_CP="$JAR:\
 $SINGLE_DEPS_DIR/commons-configuration2-2.14.0.jar:\
 $SINGLE_DEPS_DIR/commons-lang3-3.20.0.jar:\
 $SINGLE_DEPS_DIR/commons-text-1.15.0.jar:\
-$SINGLE_DEPS_DIR/commons-logging-1.3.6.jar"
+$SINGLE_DEPS_DIR/commons-logging-1.3.6.jar:\
+$SINGLE_DEPS_DIR/commons-beanutils-1.11.0.jar:\
+$SINGLE_DEPS_DIR/commons-collections-3.2.2.jar"
 MAIN="dev.configexp.Main"
 WORK_DIR="workload-tmp"
 SINGLE_AOT="single.aot"
