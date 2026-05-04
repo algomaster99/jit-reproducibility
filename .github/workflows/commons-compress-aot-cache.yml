@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      single_aot_jdk:
+        description: 'JDK version used for single.aot'
+        required: false
+        default: '25'
+        type: choice
+        options:
+          - '25'
+          - '24'
 
 jobs:
   tree-combine:
@@ -69,16 +78,16 @@ jobs:
         working-directory: commons-compress-experiment/benchmark
         run: mvn package -DskipTests -q
 
-      - name: Set up JDK 25 (no-AOT baseline and single.aot)
+      - name: Set up JDK ${{ inputs.single_aot_jdk }} (no-AOT baseline and single.aot)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: ${{ inputs.single_aot_jdk || '25' }}
 
       - name: Capture Temurin JDK path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
-      - name: Create single.aot (JDK 25)
+      - name: Create single.aot (JDK ${{ inputs.single_aot_jdk || '25' }})
         working-directory: commons-compress-experiment
         run: |
           set -euo pipefail

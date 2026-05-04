@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      single_aot_jdk:
+        description: 'JDK version used for single.aot'
+        required: false
+        default: '25'
+        type: choice
+        options:
+          - '25'
+          - '24'
 
 jobs:
   tree-combine:
@@ -100,16 +109,16 @@ jobs:
           test -f pdfbox-deps/bc-java-util-workload/cache.aot
           test -f pdfbox-deps/bc-java-pkix-workload/cache.aot
 
-      - name: Set up default JDK 25 (single.aot and baseline workload)
+      - name: Set up default JDK ${{ inputs.single_aot_jdk }} (single.aot and baseline workload)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: ${{ inputs.single_aot_jdk || '25' }}
 
       - name: Capture Temurin java path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
-      - name: Create single.aot (JDK 25)
+      - name: Create single.aot (JDK ${{ inputs.single_aot_jdk || '25' }})
         working-directory: pdfbox-experiment
         run: |
           set -euo pipefail
