@@ -22,12 +22,6 @@ CACHE_PATHS=(
     "pdfbox-deps/pdfbox-jbig2/cache.aot"
     "pdfbox-deps/apache-commons-io/cache.aot"
     "pdfbox-deps/commons-logging-workload/cache.aot"
-    # BouncyCastle (recorded against per-module fat-jar workloads — see each
-    # bc-java-*-workload/README.md for why Gradle's tests cannot host AOT
-    # recording for this library)
-    "pdfbox-deps/bc-java-prov-workload/cache.aot"
-    "pdfbox-deps/bc-java-util-workload/cache.aot"
-    "pdfbox-deps/bc-java-pkix-workload/cache.aot"
 )
 
 MISSING=0
@@ -60,10 +54,6 @@ CP_ENTRIES=(
     ## mvn clean package -Ptree-merge
     "pdfbox-deps/apache-commons-io/target/classes"
     "pdfbox-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar"
-    # BouncyCastle
-    "pdfbox-deps/bc-java-prov-workload/target/bc-java-prov-workload-1.0-SNAPSHOT.jar"
-    "pdfbox-deps/bc-java-util-workload/target/bc-java-util-workload-1.0-SNAPSHOT.jar"
-    "pdfbox-deps/bc-java-pkix-workload/target/bc-java-pkix-workload-1.0-SNAPSHOT.jar"
 )
 
 # ── Merge ─────────────────────────────────────────────────────────────────────

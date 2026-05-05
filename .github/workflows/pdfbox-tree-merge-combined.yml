@@ -75,9 +75,6 @@ jobs:
 
           workloads=(
             pdfbox-deps/commons-logging-workload
-            pdfbox-deps/bc-java-prov-workload
-            pdfbox-deps/bc-java-util-workload
-            pdfbox-deps/bc-java-pkix-workload
           )
 
           for workload in "${workloads[@]}"; do
@@ -90,24 +87,12 @@ jobs:
         run: |
           set -euo pipefail
           rm -f \
-            pdfbox-deps/commons-logging-workload/cache.aot \
-            pdfbox-deps/bc-java-prov-workload/cache.aot \
-            pdfbox-deps/bc-java-util-workload/cache.aot \
-            pdfbox-deps/bc-java-pkix-workload/cache.aot
+            pdfbox-deps/commons-logging-workload/cache.aot
 
           java -XX:AOTCacheOutput=pdfbox-deps/commons-logging-workload/cache.aot \
             -jar pdfbox-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar
-          java -XX:AOTCacheOutput=pdfbox-deps/bc-java-prov-workload/cache.aot \
-            -jar pdfbox-deps/bc-java-prov-workload/target/bc-java-prov-workload-1.0-SNAPSHOT.jar
-          java -XX:AOTCacheOutput=pdfbox-deps/bc-java-util-workload/cache.aot \
-            -jar pdfbox-deps/bc-java-util-workload/target/bc-java-util-workload-1.0-SNAPSHOT.jar
-          java -XX:AOTCacheOutput=pdfbox-deps/bc-java-pkix-workload/cache.aot \
-            -jar pdfbox-deps/bc-java-pkix-workload/target/bc-java-pkix-workload-1.0-SNAPSHOT.jar
 
           test -f pdfbox-deps/commons-logging-workload/cache.aot
-          test -f pdfbox-deps/bc-java-prov-workload/cache.aot
-          test -f pdfbox-deps/bc-java-util-workload/cache.aot
-          test -f pdfbox-deps/bc-java-pkix-workload/cache.aot
 
       - name: Set up default JDK ${{ inputs.single_aot_jdk }} (single.aot and baseline workload)
         uses: actions/setup-java@v4
@@ -217,9 +202,6 @@ jobs:
             echo "| pdfbox-jbig2 | \`pdfbox-deps/pdfbox-jbig2/cache.aot\` | $(du -h pdfbox-deps/pdfbox-jbig2/cache.aot | awk '{print $1}') |"
             echo "| apache-commons-io | \`pdfbox-deps/apache-commons-io/cache.aot\` | $(du -h pdfbox-deps/apache-commons-io/cache.aot | awk '{print $1}') |"
             echo "| commons-logging-workload | \`pdfbox-deps/commons-logging-workload/cache.aot\` | $(du -h pdfbox-deps/commons-logging-workload/cache.aot | awk '{print $1}') |"
-            echo "| bc-java-prov-workload | \`pdfbox-deps/bc-java-prov-workload/cache.aot\` | $(du -h pdfbox-deps/bc-java-prov-workload/cache.aot | awk '{print $1}') |"
-            echo "| bc-java-util-workload | \`pdfbox-deps/bc-java-util-workload/cache.aot\` | $(du -h pdfbox-deps/bc-java-util-workload/cache.aot | awk '{print $1}') |"
-            echo "| bc-java-pkix-workload | \`pdfbox-deps/bc-java-pkix-workload/cache.aot\` | $(du -h pdfbox-deps/bc-java-pkix-workload/cache.aot | awk '{print $1}') |"
             echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
             echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
             echo
@@ -241,7 +223,4 @@ jobs:
             pdfbox-experiment/pdfbox-deps/pdfbox-jbig2/cache.aot
             pdfbox-experiment/pdfbox-deps/apache-commons-io/cache.aot
             pdfbox-experiment/pdfbox-deps/commons-logging-workload/cache.aot
-            pdfbox-experiment/pdfbox-deps/bc-java-prov-workload/cache.aot
-            pdfbox-experiment/pdfbox-deps/bc-java-util-workload/cache.aot
-            pdfbox-experiment/pdfbox-deps/bc-java-pkix-workload/cache.aot
           if-no-files-found: error

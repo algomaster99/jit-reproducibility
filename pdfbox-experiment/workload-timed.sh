@@ -120,7 +120,7 @@ print_summary() {
   local runs="$1"
 
   # Operation labels (must match the workload below).
-  local -a ops=("encrypt" "decrypt" "export:text" "export:images" "render" "fromtext" "split" "merge" "decode" "overlay")
+  local -a ops=("export:text" "export:images" "render" "fromtext" "split" "merge" "decode" "overlay")
 
   echo
   log "Aggregated timing over ${runs} runs (ms)"
@@ -200,24 +200,6 @@ print_class_load_summary() {
   log "Class-load source summary per workload (captured once per mode with -Xlog:class+load)"
   sep
   printf "  %-16s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
-
-  print_class_load_row "no" "encrypt" \
-    encrypt -O 123 -U 123 --input "$PDF" --output "$TMP/$BASE-locked.pdf"
-  print_class_load_row "tree" "encrypt" \
-    encrypt -O 123 -U 123 --input "$PDF" --output "$TMP/$BASE-locked.pdf"
-  print_class_load_row "single" "encrypt" \
-    encrypt -O 123 -U 123 --input "$PDF" --output "$TMP/$BASE-locked.pdf"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "decrypt" \
-    decrypt -password 123 --input "$TMP/$BASE-locked.pdf" --output "$TMP/$BASE-unlocked.pdf"
-  print_class_load_row "tree" "decrypt" \
-    decrypt -password 123 --input "$TMP/$BASE-locked.pdf" --output "$TMP/$BASE-unlocked.pdf"
-  print_class_load_row "single" "decrypt" \
-    decrypt -password 123 --input "$TMP/$BASE-locked.pdf" --output "$TMP/$BASE-unlocked.pdf"
-
-  echo "--------------------------------"
 
   print_class_load_row "no" "export:text" \
     export:text --input "$PDF" --output "$TMP/$BASE-text.txt"
@@ -350,12 +332,6 @@ fi
 print_class_load_summary
 
 workload_once() {
-  run_op "encrypt" \
-    encrypt -O 123 -U 123 --input "$PDF" --output "$TMP/$BASE-locked.pdf"
-
-  run_op "decrypt" \
-    decrypt -password 123 --input "$TMP/$BASE-locked.pdf" --output "$TMP/$BASE-unlocked.pdf"
-
   run_op "export:text" \
     export:text --input "$PDF" --output "$TMP/$BASE-text.txt"
 
