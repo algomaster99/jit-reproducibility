@@ -3,7 +3,6 @@ package dev.batikexp;
 import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
 import org.apache.batik.svggen.SVGGeneratorContext;
 import org.apache.batik.svggen.SVGGraphics2D;
-import org.apache.batik.transcoder.SVGAbstractTranscoder;
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.TranscoderOutput;
 import org.apache.batik.transcoder.image.JPEGTranscoder;
@@ -36,7 +35,6 @@ public class Main {
             case "svg-to-jpeg"  -> svgToJpeg(workDir);
             case "svg-to-svg"   -> svgToSvg(workDir);
             case "svg-generate" -> svgGenerate(workDir);
-            case "svg-script"   -> svgScript(workDir);
             default -> { System.err.println("Unknown command: " + cmd); System.exit(1); }
         }
     }
@@ -48,7 +46,6 @@ public class Main {
     static void prepare(Path workDir) throws Exception {
         Files.createDirectories(workDir);
         Files.writeString(workDir.resolve("simple.svg"), SIMPLE_SVG);
-        Files.writeString(workDir.resolve("scripted.svg"), SCRIPTED_SVG);
     }
 
     // -------------------------------------------------------------------------
@@ -98,7 +95,7 @@ public class Main {
     static void svgToSvg(Path workDir) throws Exception {
         SVGTranscoder t = new SVGTranscoder();
         File svg = workDir.resolve("simple.svg").toFile();
-        try (InputStream in = new FileInputStream(svg);
+        try (Reader in = new FileReader(svg);
              StringWriter out = new StringWriter()) {
             t.transcode(new TranscoderInput(in), new TranscoderOutput(out));
         }
@@ -136,22 +133,6 @@ public class Main {
     }
 
     // -------------------------------------------------------------------------
-    // svg-script: transcode SVG containing ECMAScript — loads Rhino
-    // -------------------------------------------------------------------------
-
-    static void svgScript(Path workDir) throws Exception {
-        PNGTranscoder t = new PNGTranscoder();
-        // Without KEY_EXECUTE_ONLOAD, batik skips <script> elements and Rhino
-        // is never initialised — which would defeat the purpose of this workload.
-        t.addTranscodingHint(SVGAbstractTranscoder.KEY_EXECUTE_ONLOAD, Boolean.TRUE);
-        File svg = workDir.resolve("scripted.svg").toFile();
-        try (InputStream in = new FileInputStream(svg);
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            t.transcode(new TranscoderInput(in), new TranscoderOutput(out));
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Embedded SVG sources
     // -------------------------------------------------------------------------
 
@@ -174,26 +155,4 @@ public class Main {
         "        text-anchor=\"middle\" fill=\"#333\">batik benchmark</text>\n" +
         "</svg>\n";
 
-    // The <script> block changes the rectangle fill colour on load.
-    // Setting KEY_EXECUTE_ONLOAD causes batik to initialise Rhino and run it.
-    private static final String SCRIPTED_SVG =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-        "<svg xmlns=\"http://www.w3.org/2000/svg\"\n" +
-        "     xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n" +
-        "     width=\"200\" height=\"200\" viewBox=\"0 0 200 200\"\n" +
-        "     onload=\"init(evt)\">\n" +
-        "  <script type=\"text/ecmascript\">\n" +
-        "    function init(evt) {\n" +
-        "      var svgDoc = evt.target.ownerDocument;\n" +
-        "      var box = svgDoc.getElementById('box');\n" +
-        "      box.setAttribute('fill', '#2255cc');\n" +
-        "      var lbl = svgDoc.getElementById('lbl');\n" +
-        "      lbl.textContent = 'rhino active';\n" +
-        "    }\n" +
-        "  </script>\n" +
-        "  <rect width=\"200\" height=\"200\" fill=\"#eee\"/>\n" +
-        "  <rect id=\"box\" x=\"30\" y=\"30\" width=\"140\" height=\"100\" fill=\"red\"/>\n" +
-        "  <text id=\"lbl\" x=\"100\" y=\"170\" font-family=\"Arial\" font-size=\"14\"\n" +
-        "        text-anchor=\"middle\" fill=\"#333\">no script</text>\n" +
-        "</svg>\n";
 }

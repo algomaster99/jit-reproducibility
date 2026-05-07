@@ -21,7 +21,7 @@ JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
 JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
 JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
 
-OPS=(svg-parse svg-to-png svg-to-jpeg svg-to-svg svg-generate svg-script)
+OPS=(svg-parse svg-to-png svg-to-jpeg svg-to-svg svg-generate)
 
 [[ -f "$FAT_JAR" ]]   || fail "$FAT_JAR not found — run: cd benchmark && mvn package -DskipTests"
 [[ -f "$SINGLE_AOT" ]] || fail "single.aot not found — run ./create-single-aot.sh first"
