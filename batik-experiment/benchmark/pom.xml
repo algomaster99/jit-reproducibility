@@ -12,7 +12,7 @@
   <!-- If batik-transcoder:1.19 is not yet on Maven Central, install it locally first:
        cd ../batik && mvn install -DskipTests -->
   <properties>
-    <maven.compiler.release>11</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <batik.version>1.19</batik.version>
   </properties>

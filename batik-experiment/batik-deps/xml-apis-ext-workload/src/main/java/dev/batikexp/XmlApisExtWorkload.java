@@ -1,17 +1,15 @@
 package dev.batikexp;
 
-// xml-apis-ext ships only interfaces — org.w3c.dom.svg.* and org.w3c.dom.smil.*.
-// Batik provides the concrete implementations at runtime, so there is nothing to
-// instantiate here.  Loading every interface class is sufficient to get them
+// xml-apis-ext:1.3.04 ships only org.w3c.dom.svg.* interfaces.
+// The org.w3c.dom.smil.* package is NOT present in this JAR version.
+// Batik provides the concrete SVG implementations at runtime, so there is nothing
+// to instantiate here. Loading every interface class is sufficient to get them
 // recorded into the AOT cache: the JVM resolves and verifies each interface
 // (including its superinterface chain back into xml-apis) during Class.forName.
 public class XmlApisExtWorkload {
 
     public static void main(String[] args) throws Exception {
         for (String name : SVG_INTERFACES) {
-            Class.forName(name);
-        }
-        for (String name : SMIL_INTERFACES) {
             Class.forName(name);
         }
     }
@@ -119,26 +117,4 @@ public class XmlApisExtWorkload {
         "org.w3c.dom.svg.GetSVGDocument",
     };
 
-    private static final String[] SMIL_INTERFACES = {
-        "org.w3c.dom.smil.SMILDocument",
-        "org.w3c.dom.smil.SMILElement",
-        "org.w3c.dom.smil.SMILLayoutElement",
-        "org.w3c.dom.smil.SMILTopLayoutElement",
-        "org.w3c.dom.smil.SMILRootLayoutElement",
-        "org.w3c.dom.smil.SMILRegionElement",
-        "org.w3c.dom.smil.SMILMediaElement",
-        "org.w3c.dom.smil.SMILRefElement",
-        "org.w3c.dom.smil.SMILAnimationElement",
-        "org.w3c.dom.smil.SMILAnimateElement",
-        "org.w3c.dom.smil.SMILSetElement",
-        "org.w3c.dom.smil.SMILAnimateMotionElement",
-        "org.w3c.dom.smil.SMILAnimateColorElement",
-        "org.w3c.dom.smil.Time",
-        "org.w3c.dom.smil.TimeList",
-        "org.w3c.dom.smil.ElementTime",
-        "org.w3c.dom.smil.ElementTimeControl",
-        "org.w3c.dom.smil.ElementTargetAttributes",
-        "org.w3c.dom.smil.ElementTest",
-        "org.w3c.dom.smil.ElementLayout",
-    };
 }

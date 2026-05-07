@@ -18,7 +18,7 @@ workload only and represents the narrowest useful cache.
 | `commons-io:commons-io` | 2.17.0 | Stream/file utilities used by xmlgraphics-commons | Test suite — `mvn test` (argLine patched in pom) in `batik-deps/commons-io/` |
 | `commons-logging:commons-logging` | 1.3.0 | Logging façade used by xmlgraphics-commons | Custom workload — `batik-deps/commons-logging-workload/` |
 | `xml-apis:xml-apis` | 1.4.01 | W3C DOM / SAX / JAXP interface stubs | Custom workload — `batik-deps/xml-apis-workload/` |
-| `xml-apis:xml-apis-ext` | 1.3.04 | SVG DOM / SMIL DOM interface stubs | Custom workload — `batik-deps/xml-apis-ext-workload/` |
+| `xml-apis:xml-apis-ext` | 1.3.04 | SVG DOM interface stubs (`org.w3c.dom.svg.*`) | Custom workload — `batik-deps/xml-apis-ext-workload/` |
 | `org.mozilla:rhino` | 1.7.7 | ECMAScript engine; loaded lazily when SVG `<script>` runs | Covered by batik test suite — already a transitive dep of `batik-script` and `batik-bridge` |
 
 ---
@@ -48,7 +48,7 @@ Each artifact gets its own recording project:
 - **`xml-apis-workload/`** exercises the concrete JAXP entry points —
   `DocumentBuilderFactory`, `SAXParserFactory`, `TransformerFactory` — which trigger
   loading of the `org.w3c.dom` and `org.xml.sax` interface hierarchies as a side effect.
-- **`xml-apis-ext-workload/`** force-loads every SVG DOM and SMIL DOM interface via
-  `Class.forName`, since there is no other code path that instantiates them without
-  batik present. xml-apis is on its classpath too because the SVG interfaces extend
-  `org.w3c.dom` types.
+- **`xml-apis-ext-workload/`** force-loads every SVG DOM interface (`org.w3c.dom.svg.*`)
+  via `Class.forName`. The `org.w3c.dom.smil.*` package is not present in version
+  1.3.04. xml-apis is on its classpath because the SVG interfaces extend `org.w3c.dom`
+  types.
