@@ -9,7 +9,7 @@ on:
       single_aot_jdk:
         description: 'JDK version used for single.aot'
         required: false
-        default: '25'
+        default: '24'
         type: choice
         options:
           - '25'
@@ -105,12 +105,12 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ inputs.single_aot_jdk || '25' }}
+          java-version: ${{ inputs.single_aot_jdk || '24' }}
 
       - name: Capture Temurin JDK path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
-      - name: Create single.aot (JDK ${{ inputs.single_aot_jdk || '25' }})
+      - name: Create single.aot (JDK ${{ inputs.single_aot_jdk || '24' }})
         working-directory: commons-configuration-experiment
         run: |
           set -euo pipefail
