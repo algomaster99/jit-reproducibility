@@ -45,3 +45,12 @@
 	path = commons-configuration-experiment/commons-configuration-deps/commons-collections
 	url = git@github.com:algomaster99/commons-collections.git
 	branch = aotcache-setup_commons-configuration
+[submodule "batik-experiment/batik"]
+	path = batik-experiment/batik
+	url = https://github.com/apache/xmlgraphics-batik
+[submodule "batik-experiment/batik-deps/xmlgraphics-commons"]
+	path = batik-experiment/batik-deps/xmlgraphics-commons
+	url = https://github.com/apache/xmlgraphics-commons
+[submodule "batik-experiment/batik-deps/commons-io"]
+	path = batik-experiment/batik-deps/commons-io
+	url = git@github.com:algomaster99/commons-io.git
