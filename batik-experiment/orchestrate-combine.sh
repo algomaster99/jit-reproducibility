@@ -12,10 +12,12 @@ java -version
 
 # All cache.aot files produced by the individual recording steps.
 # Record each one before running this script:
-#   batik/batik-test-old/           mvn test -P tree-merge  (in batik/batik-transcoder)
+#   batik/batik-test-old/           mvn test -P tree-merge
 #   batik-deps/xmlgraphics-commons/ mvn test -P tree-merge
 #   batik-deps/commons-io/          mvn test
 #   batik-deps/*/cache.aot          java -XX:AOTCacheOutput=cache.aot -jar <workload>-fat.jar
+# Note: Rhino (org.mozilla:rhino) is a transitive dep of batik-script/batik-bridge
+# and is recorded as part of the batik-test-old cache when scripted SVG tests run.
 CACHE_PATHS=(
   "batik/batik-test-old/cache.aot"
   "batik-deps/xmlgraphics-commons/cache.aot"
@@ -23,7 +25,6 @@ CACHE_PATHS=(
   "batik-deps/commons-logging-workload/cache.aot"
   "batik-deps/xml-apis-workload/cache.aot"
   "batik-deps/xml-apis-ext-workload/cache.aot"
-  "batik-deps/rhino-workload/cache.aot"
 )
 
 FAT_JAR="benchmark/target/benchmark-fat.jar"

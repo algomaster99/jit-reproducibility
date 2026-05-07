@@ -1,0 +1,227 @@
+name: Batik Distributed AOT Cache
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      single_aot_jdk:
+        description: 'JDK version used for single.aot and the no-AOT baseline'
+        required: false
+        default: '24'
+        type: choice
+        options:
+          - '25'
+          - '24'
+
+jobs:
+  tree-combine:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Download custom JDK
+        uses: ./.github/actions/download-custom-jdk
+
+      - name: Set up custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-batik-${{ hashFiles('batik-experiment/**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-batik-
+            ${{ runner.os }}-maven-
+
+      # batik-test-old depends on all batik-* sibling modules, and benchmark
+      # depends on batik-transcoder. Install the full reactor first so both can
+      # resolve their deps from the local Maven repo without network access.
+      - name: Install batik modules into local Maven repo
+        working-directory: batik-experiment/batik
+        run: mvn install -DskipTests -q
+
+      # ── test-suite caches ──────────────────────────────────────────────────
+
+      - name: Build batik cache (tree-merge)
+        working-directory: batik-experiment/batik/batik-test-old
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build xmlgraphics-commons cache (tree-merge)
+        working-directory: batik-experiment/batik-deps/xmlgraphics-commons
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build commons-io cache (mvn test)
+        working-directory: batik-experiment/batik-deps/commons-io
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -q
+          test -f cache.aot
+
+      # ── workload caches ────────────────────────────────────────────────────
+
+      - name: Build and record commons-logging-workload cache
+        working-directory: batik-experiment/batik-deps/commons-logging-workload
+        run: |
+          set -euo pipefail
+          mvn package -DskipTests -q
+          java -XX:AOTCacheOutput=cache.aot -jar target/commons-logging-workload-fat.jar
+          test -f cache.aot
+
+      - name: Build and record xml-apis-workload cache
+        working-directory: batik-experiment/batik-deps/xml-apis-workload
+        run: |
+          set -euo pipefail
+          mvn package -DskipTests -q
+          java -XX:AOTCacheOutput=cache.aot -jar target/xml-apis-workload-fat.jar
+          test -f cache.aot
+
+      - name: Build and record xml-apis-ext-workload cache
+        working-directory: batik-experiment/batik-deps/xml-apis-ext-workload
+        run: |
+          set -euo pipefail
+          mvn package -DskipTests -q
+          java -XX:AOTCacheOutput=cache.aot -jar target/xml-apis-ext-workload-fat.jar
+          test -f cache.aot
+
+      # ── benchmark jar ──────────────────────────────────────────────────────
+
+      - name: Build benchmark fat jar
+        working-directory: batik-experiment/benchmark
+        run: mvn package -DskipTests -q
+
+      # ── single.aot (Temurin — standard JDK for the no-AOT baseline) ───────
+
+      - name: Set up JDK ${{ inputs.single_aot_jdk || '24' }} (no-AOT baseline and single.aot)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.single_aot_jdk || '24' }}
+
+      - name: Capture Temurin JDK path
+        run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Create single.aot (JDK ${{ inputs.single_aot_jdk || '24' }})
+        working-directory: batik-experiment
+        run: |
+          set -euo pipefail
+          chmod +x create-single-aot.sh
+          ./create-single-aot.sh
+          test -f single.aot
+
+      # ── tree.aot (custom JDK — has the AOT merge capability) ──────────────
+
+      - name: Re-enable custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Create tree.aot (orchestrate-combine.sh)
+        working-directory: batik-experiment
+        run: |
+          set -euo pipefail
+          chmod +x orchestrate-combine.sh
+          combine_out=$(./orchestrate-combine.sh 2>&1) || { echo "$combine_out"; exit 1; }
+          echo "$combine_out"
+          combine_out_clean=$(echo "$combine_out" | sed 's/\x1B\[[0-9;]*m//g')
+
+          tree_size=$(du -h tree.aot | awk '{print $1}')
+
+          {
+            echo "## tree.aot creation (orchestrate-combine)"
+            echo
+            echo "- tree.aot: ${tree_size}"
+            echo
+            echo '```'
+            echo "$combine_out_clean"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          test -f tree.aot
+
+      # ── timed workload ─────────────────────────────────────────────────────
+
+      - name: Run timed workload
+        working-directory: batik-experiment
+        run: |
+          set -euo pipefail
+          chmod +x workload-timed.sh
+          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" \
+                   JAVA_SINGLE_BIN="$TEMURIN_JAVA_HOME/bin/java" \
+                   JAVA_TREE_BIN="$JAVA_HOME/bin/java" \
+                   ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
+          echo "$wl_out"
+          wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
+
+          single_size=$(du -h single.aot | awk '{print $1}')
+          tree_size=$(du -h tree.aot | awk '{print $1}')
+
+          {
+            echo "## Timed workload results (no-AOT vs single vs tree)"
+            echo
+            echo "- single.aot: ${single_size}"
+            echo "- tree.aot: ${tree_size}"
+            echo
+            echo '```'
+            echo "$wl_out_clean"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── artifact summary ───────────────────────────────────────────────────
+
+      - name: Write artifact summary
+        working-directory: batik-experiment
+        run: |
+          {
+            echo "## Distributed AOT artifact summary"
+            echo
+            echo "| Artifact | Cache path | Size |"
+            echo "|---|---|---|"
+            echo "| batik (test-suite) | \`batik/batik-test-old/cache.aot\` | $(du -h batik/batik-test-old/cache.aot | awk '{print $1}') |"
+            echo "| xmlgraphics-commons | \`batik-deps/xmlgraphics-commons/cache.aot\` | $(du -h batik-deps/xmlgraphics-commons/cache.aot | awk '{print $1}') |"
+            echo "| commons-io | \`batik-deps/commons-io/cache.aot\` | $(du -h batik-deps/commons-io/cache.aot | awk '{print $1}') |"
+            echo "| commons-logging | \`batik-deps/commons-logging-workload/cache.aot\` | $(du -h batik-deps/commons-logging-workload/cache.aot | awk '{print $1}') |"
+            echo "| xml-apis | \`batik-deps/xml-apis-workload/cache.aot\` | $(du -h batik-deps/xml-apis-workload/cache.aot | awk '{print $1}') |"
+            echo "| xml-apis-ext | \`batik-deps/xml-apis-ext-workload/cache.aot\` | $(du -h batik-deps/xml-apis-ext-workload/cache.aot | awk '{print $1}') |"
+            echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
+            echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── upload ─────────────────────────────────────────────────────────────
+
+      - name: Upload Batik workload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: batik-tree-artifacts
+          path: |
+            batik-experiment/workload-tmp/
+            batik-experiment/aotlink-tree-create.log
+            batik-experiment/single.aot
+            batik-experiment/tree.aot
+            batik-experiment/batik/batik-test-old/cache.aot
+            batik-experiment/batik-deps/xmlgraphics-commons/cache.aot
+            batik-experiment/batik-deps/commons-io/cache.aot
+            batik-experiment/batik-deps/commons-logging-workload/cache.aot
+            batik-experiment/batik-deps/xml-apis-workload/cache.aot
+            batik-experiment/batik-deps/xml-apis-ext-workload/cache.aot
+          if-no-files-found: error
