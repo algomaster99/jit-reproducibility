@@ -9,8 +9,7 @@
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
-  <!-- If batik-transcoder:1.19 is not yet on Maven Central, install it locally first:
-       cd ../batik && mvn install -DskipTests -->
+  <!-- Requires batik 1.19 in local Maven repo: cd ../batik && mvn install -DskipTests -->
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -18,16 +17,10 @@
   </properties>
 
   <dependencies>
-    <!-- Entry point — pulls in all batik-* submodules transitively -->
+    <!-- All batik modules in one artifact — same as batik-test-old uses -->
     <dependency>
       <groupId>org.apache.xmlgraphics</groupId>
-      <artifactId>batik-transcoder</artifactId>
-      <version>${batik.version}</version>
-    </dependency>
-    <!-- SVG DOM generation (SVGGraphics2D) -->
-    <dependency>
-      <groupId>org.apache.xmlgraphics</groupId>
-      <artifactId>batik-svggen</artifactId>
+      <artifactId>batik-all</artifactId>
       <version>${batik.version}</version>
     </dependency>
   </dependencies>
