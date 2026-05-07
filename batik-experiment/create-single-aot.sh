@@ -35,12 +35,13 @@ java "${JAVA_ARGS[@]}" "$MAIN" prepare "$WORK_DIR"
 
 rm -f "$SINGLE_CONF" "$SINGLE_AOT"
 
-# Step 1 — record: single.aot is trained on svg-to-png only.
-# svg-parse, svg-to-jpeg, svg-to-svg, svg-generate, and svg-script all miss the
-# cache, which maximises the observable gap between single.aot and tree.aot.
-log "Step 1/2 — recording AOT configuration (training op: svg-to-png)"
+# Step 1 — record: single.aot is trained on svg-to-svg only.
+# This is the lightest workload (~65ms), so it captures very few compiled
+# methods. All heavier ops (svg-to-png, svg-to-jpeg, svg-parse, svg-generate)
+# miss the cache, making the gap between single.aot and tree.aot clearly visible.
+log "Step 1/2 — recording AOT configuration (training op: svg-to-svg)"
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
-  "${JAVA_ARGS[@]}" "$MAIN" svg-to-png "$WORK_DIR"
+  "${JAVA_ARGS[@]}" "$MAIN" svg-to-svg "$WORK_DIR"
 
 [[ -f "$SINGLE_CONF" ]] || fail "AOT configuration file was not produced"
 
