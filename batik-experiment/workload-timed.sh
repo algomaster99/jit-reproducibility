@@ -11,28 +11,28 @@ cd "$SCRIPT_DIR"
 FAT_JAR="benchmark/target/benchmark-fat.jar"
 MAIN="dev.batikexp.Main"
 WORK_DIR="workload-tmp"
-SINGLE_AOT="single.aot"
-TREE_AOT="tree.aot"
+MONOLITHIC_AOT="single.aot"
+MERGED_AOT="tree.aot"
 
 # Override any of these with environment variables before running:
-#   RUNS=20 JAVA_TREE_BIN=/path/to/java24 ./workload-timed.sh
+#   RUNS=20 JAVA_MERGED_BIN=/path/to/java24 ./workload-timed.sh
 RUNS="${RUNS:-30}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
-JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
-JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
+JAVA_MONOLITHIC_BIN="${JAVA_MONOLITHIC_BIN:-java}"
+JAVA_MERGED_BIN="${JAVA_MERGED_BIN:-java}"
 
-OPS=(svg-parse svg-to-png svg-to-jpeg svg-to-svg svg-generate)
+OPS=(svg-to-svg svg-parse svg-to-png svg-to-jpeg svg-generate)
 
 [[ -f "$FAT_JAR" ]]   || fail "$FAT_JAR not found — run: cd benchmark && mvn package -DskipTests"
-[[ -f "$SINGLE_AOT" ]] || fail "single.aot not found — run ./create-single-aot.sh first"
-[[ -f "$TREE_AOT" ]]   || fail "tree.aot not found — run ./orchestrate-combine.sh first"
+[[ -f "$MONOLITHIC_AOT" ]] || fail "single.aot not found — run ./create-single-aot.sh first"
+[[ -f "$MERGED_AOT" ]]   || fail "tree.aot not found — run ./orchestrate-combine.sh first"
 
 mkdir -p "$WORK_DIR"
 
 log "Java binaries:"
 printf "  no-AOT:     %s\n" "$JAVA_NO_BIN";     "$JAVA_NO_BIN"     -version 2>&1 | head -1
-printf "  single-AOT: %s\n" "$JAVA_SINGLE_BIN"; "$JAVA_SINGLE_BIN" -version 2>&1 | head -1
-printf "  tree-AOT:   %s\n" "$JAVA_TREE_BIN";   "$JAVA_TREE_BIN"   -version 2>&1 | head -1
+printf "  monolithic-AOT: %s\n" "$JAVA_MONOLITHIC_BIN"; "$JAVA_MONOLITHIC_BIN" -version 2>&1 | head -1
+printf "  merged-AOT:     %s\n" "$JAVA_MERGED_BIN";     "$JAVA_MERGED_BIN"     -version 2>&1 | head -1
 echo
 
 # Shared flags for all invocations
@@ -75,8 +75,8 @@ _stddev() {
 # ─── run helpers ─────────────────────────────────────────────────────────────
 
 _run_no()     { "$JAVA_NO_BIN"     "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
-_run_single() { "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
-_run_tree()   { "$JAVA_TREE_BIN"   -XX:AOTCache="$TREE_AOT"   "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
+_run_monolithic() { "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
+_run_merged()   { "$JAVA_MERGED_BIN"   -XX:AOTCache="$MERGED_AOT"   "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
 
 _measure() {
   local op="$1" mode="$2" run="$3"
@@ -101,8 +101,8 @@ _classload_row() {
   local logfile="$WORK_DIR/cl-${op}-${mode}.log"
   case "$mode" in
     no)     "$JAVA_NO_BIN"     -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
-    single) "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
-    tree)   "$JAVA_TREE_BIN"   -XX:AOTCache="$TREE_AOT"   -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
+    monolithic) "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
+    merged)     "$JAVA_MERGED_BIN"     -XX:AOTCache="$MERGED_AOT"     -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
   esac
   printf "  %-14s | %-6s | %8s | %8s\n" "$op" "$mode" \
     "$(awk '/source: file:/{c++} END{print c+0}' "$logfile")" \
@@ -117,9 +117,9 @@ sep
 for run in $(seq 1 "$RUNS"); do
   printf "  run %2d/%d\n" "$run" "$RUNS"
   for op in "${OPS[@]}"; do
-    _measure "$op" no     "$run"
-    _measure "$op" single "$run"
-    _measure "$op" tree   "$run"
+    _measure "$op" no          "$run"
+    _measure "$op" monolithic  "$run"
+    _measure "$op" merged      "$run"
   done
 done
 
@@ -129,14 +129,14 @@ echo
 log "Aggregated timing over $RUNS runs (ms) — lower is better"
 sep
 printf "  %-14s | %9s %7s %7s %7s | %11s %7s %7s %7s | %9s %7s %7s %7s\n" \
-  "Operation" "no-mean" "no-min" "no-max" "no-std" "single-mean" "sng-min" "sng-max" "sng-std" "tree-mean" "tr-min" "tr-max" "tr-std"
+  "Operation" "no-mean" "no-min" "no-max" "no-std" "mono-mean" "mono-min" "mono-max" "mono-std" "merged-mean" "mg-min" "mg-max" "mg-std"
 sep
 for op in "${OPS[@]}"; do
   printf "  %-14s | %9s %7s %7s %7s | %11s %7s %7s %7s | %9s %7s %7s %7s\n" \
     "$op" \
-    "$(_mean "${op}|no")"     "${_min[${op}|no]:-n/a}"     "${_max[${op}|no]:-n/a}"     "$(_stddev "${op}|no")" \
-    "$(_mean "${op}|single")" "${_min[${op}|single]:-n/a}" "${_max[${op}|single]:-n/a}" "$(_stddev "${op}|single")" \
-    "$(_mean "${op}|tree")"   "${_min[${op}|tree]:-n/a}"   "${_max[${op}|tree]:-n/a}"   "$(_stddev "${op}|tree")"
+    "$(_mean "${op}|no")"          "${_min[${op}|no]:-n/a}"          "${_max[${op}|no]:-n/a}"          "$(_stddev "${op}|no")" \
+    "$(_mean "${op}|monolithic")"  "${_min[${op}|monolithic]:-n/a}"  "${_max[${op}|monolithic]:-n/a}"  "$(_stddev "${op}|monolithic")" \
+    "$(_mean "${op}|merged")"      "${_min[${op}|merged]:-n/a}"      "${_max[${op}|merged]:-n/a}"      "$(_stddev "${op}|merged")"
 done
 
 _print_latex_rows() {
@@ -146,12 +146,12 @@ _print_latex_rows() {
   local tex_file="$WORK_DIR/latex-rows.tex"
   echo "\\multirow{${n}}{*}{${project}}" > "$tex_file"
   for op in "${OPS[@]}"; do
-    local m_single m_tree s_single s_tree speedup w
-    m_single=$(_mean "${op}|single")
-    m_tree=$(_mean "${op}|tree")
-    s_single=$(_stddev "${op}|single")
-    s_tree=$(_stddev "${op}|tree")
-    speedup=$(awk -v ms="$m_single" -v mt="$m_tree" 'BEGIN {
+    local m_mono m_merged s_mono s_merged speedup w
+    m_mono=$(_mean "${op}|monolithic")
+    m_merged=$(_mean "${op}|merged")
+    s_mono=$(_stddev "${op}|monolithic")
+    s_merged=$(_stddev "${op}|merged")
+    speedup=$(awk -v ms="$m_mono" -v mt="$m_merged" 'BEGIN {
       if (ms+0 == 0) { print "n/a" }
       else { printf "%+.1f", (ms - mt) / ms * 100 }
     }')
@@ -160,7 +160,7 @@ _print_latex_rows() {
     else
       w="${op}"
     fi
-    echo "  & ${w} & \$${m_single} \\pm ${s_single}\$ & \$${m_tree} \\pm ${s_tree}\$ & ${speedup}\\% \\\\" >> "$tex_file"
+    echo "  & ${w} & \$${m_mono} \\pm ${s_mono}\$ & \$${m_merged} \\pm ${s_merged}\$ & ${speedup}\\% \\\\" >> "$tex_file"
     i=$(( i + 1 ))
   done
   echo "\\midrule" >> "$tex_file"
@@ -174,7 +174,7 @@ sep
 printf "  %-14s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
 sep
 for op in "${OPS[@]}"; do
-  for mode in no single tree; do
+  for mode in no monolithic merged; do
     _classload_row "$op" "$mode"
   done
   sep

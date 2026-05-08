@@ -17,25 +17,25 @@ commons-compress-deps/apache-commons-io/target/classes"
 # single.aot was recorded against JARs (directories are rejected by stock JDKs),
 # so the single mode must use the same JAR-based classpath to avoid cache rejection.
 SINGLE_DEPS_DIR="single-aot-deps"
-SINGLE_CP="$JAR:\
+MONOLITHIC_CP="$JAR:\
 $SINGLE_DEPS_DIR/commons-compress-1.28.0.jar:\
 $SINGLE_DEPS_DIR/commons-lang3-3.20.0.jar:\
 $SINGLE_DEPS_DIR/commons-codec-1.21.0.jar:\
 $SINGLE_DEPS_DIR/commons-io-2.20.0.jar"
 MAIN="dev.compressexp.Main"
 WORK_DIR="workload-tmp"
-SINGLE_AOT="single.aot"
-TREE_AOT="tree.aot"
+MONOLITHIC_AOT="single.aot"
+MERGED_AOT="tree.aot"
 RUNS="${RUNS:-30}"
 OP_TIMEOUT_SEC="${OP_TIMEOUT_SEC:-900}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
-JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
-JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
+JAVA_MONOLITHIC_BIN="${JAVA_MONOLITHIC_BIN:-java}"
+JAVA_MERGED_BIN="${JAVA_MERGED_BIN:-java}"
 OPS=("zip-roundtrip" "tar-roundtrip" "gzip-roundtrip" "list-archives")
 
 [[ -f "$JAR" ]] || fail "$JAR not found — run: cd benchmark && mvn package -DskipTests"
-[[ -f "$SINGLE_AOT" ]] || fail "single.aot not found — run create-single-aot.sh first"
-[[ -f "$TREE_AOT" ]] || fail "tree.aot not found — run orchestrate-combine.sh first"
+[[ -f "$MONOLITHIC_AOT" ]] || fail "single.aot not found — run create-single-aot.sh first"
+[[ -f "$MERGED_AOT" ]] || fail "tree.aot not found — run orchestrate-combine.sh first"
 
 mkdir -p "$WORK_DIR"
 
@@ -43,11 +43,11 @@ log "Java version(s):"
 echo "no-AOT java:     $JAVA_NO_BIN"
 "$JAVA_NO_BIN" -version
 echo
-echo "single-AOT java: $JAVA_SINGLE_BIN"
-"$JAVA_SINGLE_BIN" -version
+echo "monolithic-AOT java: $JAVA_MONOLITHIC_BIN"
+"$JAVA_MONOLITHIC_BIN" -version
 echo
-echo "tree-AOT java:   $JAVA_TREE_BIN"
-"$JAVA_TREE_BIN" -version
+echo "merged-AOT java:     $JAVA_MERGED_BIN"
+"$JAVA_MERGED_BIN" -version
 echo
 
 "$JAVA_NO_BIN" -cp "$CP" "$MAIN" prepare "$WORK_DIR" >/dev/null
@@ -108,8 +108,8 @@ run_mode_op() {
         --add-opens java.base/java.util=ALL-UNNAMED \
         -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
-    single)
-      "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" \
+    monolithic)
+      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -117,10 +117,10 @@ run_mode_op() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR"
+        -cp "$MONOLITHIC_CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
-    tree)
-      "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
+    merged)
+      "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -158,14 +158,14 @@ print_summary() {
   log "Aggregated timing over ${RUNS} runs (ms)"
   sep
   printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
-    "Operation" "no-mean" "no-min" "no-max" "no-std" "single-mean" "sng-min" "sng-max" "sng-std" "tree-mean" "tr-min" "tr-max" "tr-std"
+    "Operation" "no-mean" "no-min" "no-max" "no-std" "mono-mean" "mono-min" "mono-max" "mono-std" "merged-mean" "mg-min" "mg-max" "mg-std"
   local op
   for op in "${OPS[@]}"; do
     printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
       "$op" \
-      "$(mean_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" "$(stddev_for_key "${op}|no")" \
-      "$(mean_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" "$(stddev_for_key "${op}|single")" \
-      "$(mean_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}" "$(stddev_for_key "${op}|tree")"
+      "$(mean_for_key "${op}|no")"          "${minv[${op}|no]:-n/a}"          "${maxv[${op}|no]:-n/a}"          "$(stddev_for_key "${op}|no")" \
+      "$(mean_for_key "${op}|monolithic")"  "${minv[${op}|monolithic]:-n/a}"  "${maxv[${op}|monolithic]:-n/a}"  "$(stddev_for_key "${op}|monolithic")" \
+      "$(mean_for_key "${op}|merged")"      "${minv[${op}|merged]:-n/a}"      "${maxv[${op}|merged]:-n/a}"      "$(stddev_for_key "${op}|merged")"
   done
 }
 
@@ -186,8 +186,8 @@ print_class_load_row() {
         --add-opens java.base/java.util=ALL-UNNAMED \
         -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
-    single)
-      "$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" \
+    monolithic)
+      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" \
         -Xlog:class+load:file="$classload_log" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
@@ -196,10 +196,10 @@ print_class_load_row() {
         --add-opens java.base/java.time=ALL-UNNAMED \
         --add-opens java.base/java.time.chrono=ALL-UNNAMED \
         --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$SINGLE_CP" "$MAIN" "$op" "$WORK_DIR"
+        -cp "$MONOLITHIC_CP" "$MAIN" "$op" "$WORK_DIR"
       ;;
-    tree)
-      "$JAVA_TREE_BIN" -XX:AOTCache="$TREE_AOT" \
+    merged)
+      "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
         -Xlog:class+load:file="$classload_log" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
@@ -223,10 +223,10 @@ for RUN_IDX in $(seq 1 "$RUNS"); do
   for op in "${OPS[@]}"; do
     no_ms=$(measure_ms "$op" "no" run_mode_op "no" "$op")
     update_stats "${op}|no" "$no_ms"
-    single_ms=$(measure_ms "$op" "single" run_mode_op "single" "$op")
-    update_stats "${op}|single" "$single_ms"
-    tree_ms=$(measure_ms "$op" "tree" run_mode_op "tree" "$op")
-    update_stats "${op}|tree" "$tree_ms"
+    monolithic_ms=$(measure_ms "$op" "monolithic" run_mode_op "monolithic" "$op")
+    update_stats "${op}|monolithic" "$monolithic_ms"
+    merged_ms=$(measure_ms "$op" "merged" run_mode_op "merged" "$op")
+    update_stats "${op}|merged" "$merged_ms"
   done
 done
 
@@ -237,12 +237,12 @@ print_latex_rows() {
   local tex_file="$WORK_DIR/latex-rows.tex"
   echo "\\multirow{${n}}{*}{${project}}" > "$tex_file"
   for op in "${OPS[@]}"; do
-    local m_single m_tree s_single s_tree speedup w
-    m_single=$(mean_for_key "${op}|single")
-    m_tree=$(mean_for_key "${op}|tree")
-    s_single=$(stddev_for_key "${op}|single")
-    s_tree=$(stddev_for_key "${op}|tree")
-    speedup=$(awk -v ms="$m_single" -v mt="$m_tree" 'BEGIN {
+    local m_mono m_merged s_mono s_merged speedup w
+    m_mono=$(mean_for_key "${op}|monolithic")
+    m_merged=$(mean_for_key "${op}|merged")
+    s_mono=$(stddev_for_key "${op}|monolithic")
+    s_merged=$(stddev_for_key "${op}|merged")
+    speedup=$(awk -v ms="$m_mono" -v mt="$m_merged" 'BEGIN {
       if (ms+0 == 0) { print "n/a" }
       else { printf "%+.1f", (ms - mt) / ms * 100 }
     }')
@@ -251,7 +251,7 @@ print_latex_rows() {
     else
       w="${op}"
     fi
-    echo "  & ${w} & \$${m_single} \\pm ${s_single}\$ & \$${m_tree} \\pm ${s_tree}\$ & ${speedup}\\% \\\\" >> "$tex_file"
+    echo "  & ${w} & \$${m_mono} \\pm ${s_mono}\$ & \$${m_merged} \\pm ${s_merged}\$ & ${speedup}\\% \\\\" >> "$tex_file"
     i=$(( i + 1 ))
   done
   echo "\\midrule" >> "$tex_file"
@@ -266,7 +266,7 @@ sep
 printf "  %-16s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
 for op in "${OPS[@]}"; do
   print_class_load_row "no" "$op"
-  print_class_load_row "single" "$op"
-  print_class_load_row "tree" "$op"
+  print_class_load_row "monolithic" "$op"
+  print_class_load_row "merged" "$op"
   echo "--------------------------------"
 done
