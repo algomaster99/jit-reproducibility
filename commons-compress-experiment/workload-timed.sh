@@ -31,7 +31,7 @@ OP_TIMEOUT_SEC="${OP_TIMEOUT_SEC:-900}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
 JAVA_MONOLITHIC_BIN="${JAVA_MONOLITHIC_BIN:-java}"
 JAVA_MERGED_BIN="${JAVA_MERGED_BIN:-java}"
-OPS=("zip-roundtrip" "tar-roundtrip" "gzip-roundtrip" "list-archives")
+OPS=("gzip-roundtrip" "zip-roundtrip" "tar-roundtrip" "list-archives")
 
 [[ -f "$JAR" ]] || fail "$JAR not found — run: cd benchmark && mvn package -DskipTests"
 [[ -f "$MONOLITHIC_AOT" ]] || fail "single.aot not found — run create-single-aot.sh first"
