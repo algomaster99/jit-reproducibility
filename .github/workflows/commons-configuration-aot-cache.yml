@@ -171,6 +171,17 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Append LaTeX table rows to summary
+        working-directory: commons-configuration-experiment
+        run: |
+          {
+            echo "## LaTeX table rows (single=monolithic, tree=merged)"
+            echo
+            echo '```latex'
+            cat workload-tmp/latex-rows.tex
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write artifact summary
         working-directory: commons-configuration-experiment
         run: |

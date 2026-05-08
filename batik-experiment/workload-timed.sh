@@ -54,12 +54,12 @@ _update() {
   if [[ -z "${_max[$key]:-}" ]] || awk "BEGIN{exit !($v > ${_max[$key]})}"; then _max[$key]=$v; fi
 }
 
-_median() {
-  printf "%s\n" ${_samples[$1]:-} | sort -n | awk '
-    {a[++n]=$1} END{
+_mean() {
+  printf "%s\n" ${_samples[$1]:-} | awk '
+    {sum+=$1; n++}
+    END{
       if(!n){print "n/a"}
-      else if(n%2){printf "%.1f",a[(n+1)/2]}
-      else{printf "%.1f",(a[n/2]+a[n/2+1])/2}
+      else{printf "%.1f",sum/n}
     }'
 }
 
@@ -129,15 +129,44 @@ echo
 log "Aggregated timing over $RUNS runs (ms) — lower is better"
 sep
 printf "  %-14s | %9s %7s %7s %7s | %11s %7s %7s %7s | %9s %7s %7s %7s\n" \
-  "Operation" "no-med" "no-min" "no-max" "no-std" "single-med" "sng-min" "sng-max" "sng-std" "tree-med" "tr-min" "tr-max" "tr-std"
+  "Operation" "no-mean" "no-min" "no-max" "no-std" "single-mean" "sng-min" "sng-max" "sng-std" "tree-mean" "tr-min" "tr-max" "tr-std"
 sep
 for op in "${OPS[@]}"; do
   printf "  %-14s | %9s %7s %7s %7s | %11s %7s %7s %7s | %9s %7s %7s %7s\n" \
     "$op" \
-    "$(_median "${op}|no")"     "${_min[${op}|no]:-n/a}"     "${_max[${op}|no]:-n/a}"     "$(_stddev "${op}|no")" \
-    "$(_median "${op}|single")" "${_min[${op}|single]:-n/a}" "${_max[${op}|single]:-n/a}" "$(_stddev "${op}|single")" \
-    "$(_median "${op}|tree")"   "${_min[${op}|tree]:-n/a}"   "${_max[${op}|tree]:-n/a}"   "$(_stddev "${op}|tree")"
+    "$(_mean "${op}|no")"     "${_min[${op}|no]:-n/a}"     "${_max[${op}|no]:-n/a}"     "$(_stddev "${op}|no")" \
+    "$(_mean "${op}|single")" "${_min[${op}|single]:-n/a}" "${_max[${op}|single]:-n/a}" "$(_stddev "${op}|single")" \
+    "$(_mean "${op}|tree")"   "${_min[${op}|tree]:-n/a}"   "${_max[${op}|tree]:-n/a}"   "$(_stddev "${op}|tree")"
 done
+
+_print_latex_rows() {
+  local project="$1"
+  local n="${#OPS[@]}"
+  local i=0
+  local tex_file="$WORK_DIR/latex-rows.tex"
+  echo "\\multirow{${n}}{*}{${project}}" > "$tex_file"
+  for op in "${OPS[@]}"; do
+    local m_single m_tree s_single s_tree speedup w
+    m_single=$(_mean "${op}|single")
+    m_tree=$(_mean "${op}|tree")
+    s_single=$(_stddev "${op}|single")
+    s_tree=$(_stddev "${op}|tree")
+    speedup=$(awk -v ms="$m_single" -v mt="$m_tree" 'BEGIN {
+      if (ms+0 == 0) { print "n/a" }
+      else { printf "%+.1f", (ms - mt) / ms * 100 }
+    }')
+    if [ "$i" -eq 0 ]; then
+      w="\\textbf{${op}}"
+    else
+      w="${op}"
+    fi
+    echo "  & ${w} & \$${m_single} \\pm ${s_single}\$ & \$${m_tree} \\pm ${s_tree}\$ & ${speedup}\\% \\\\" >> "$tex_file"
+    i=$(( i + 1 ))
+  done
+  echo "\\midrule" >> "$tex_file"
+}
+
+_print_latex_rows "batik"
 
 echo
 log "Class-load source breakdown (one run each)"

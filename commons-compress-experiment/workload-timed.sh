@@ -69,19 +69,14 @@ update_stats() {
   fi
 }
 
-median_for_key() {
+mean_for_key() {
   local key="$1"
   local values="${samples[$key]# }"
-  printf "%s\n" $values | sort -n | awk '
-    { a[++n] = $1 }
+  printf "%s\n" $values | awk '
+    { sum += $1; n++ }
     END {
-      if (n == 0) {
-        print "n/a"
-      } else if (n % 2 == 1) {
-        printf "%.1f", a[(n + 1) / 2]
-      } else {
-        printf "%.1f", (a[n / 2] + a[(n / 2) + 1]) / 2
-      }
+      if (n == 0) { print "n/a" }
+      else { printf "%.1f", sum/n }
     }
   '
 }
@@ -163,14 +158,14 @@ print_summary() {
   log "Aggregated timing over ${RUNS} runs (ms)"
   sep
   printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
-    "Operation" "no-med" "no-min" "no-max" "no-std" "single-med" "sng-min" "sng-max" "sng-std" "tree-med" "tr-min" "tr-max" "tr-std"
+    "Operation" "no-mean" "no-min" "no-max" "no-std" "single-mean" "sng-min" "sng-max" "sng-std" "tree-mean" "tr-min" "tr-max" "tr-std"
   local op
   for op in "${OPS[@]}"; do
     printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
       "$op" \
-      "$(median_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" "$(stddev_for_key "${op}|no")" \
-      "$(median_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" "$(stddev_for_key "${op}|single")" \
-      "$(median_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}" "$(stddev_for_key "${op}|tree")"
+      "$(mean_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" "$(stddev_for_key "${op}|no")" \
+      "$(mean_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" "$(stddev_for_key "${op}|single")" \
+      "$(mean_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}" "$(stddev_for_key "${op}|tree")"
   done
 }
 
@@ -235,7 +230,35 @@ for RUN_IDX in $(seq 1 "$RUNS"); do
   done
 done
 
+print_latex_rows() {
+  local project="$1"
+  local n="${#OPS[@]}"
+  local i=0
+  local tex_file="$WORK_DIR/latex-rows.tex"
+  echo "\\multirow{${n}}{*}{${project}}" > "$tex_file"
+  for op in "${OPS[@]}"; do
+    local m_single m_tree s_single s_tree speedup w
+    m_single=$(mean_for_key "${op}|single")
+    m_tree=$(mean_for_key "${op}|tree")
+    s_single=$(stddev_for_key "${op}|single")
+    s_tree=$(stddev_for_key "${op}|tree")
+    speedup=$(awk -v ms="$m_single" -v mt="$m_tree" 'BEGIN {
+      if (ms+0 == 0) { print "n/a" }
+      else { printf "%+.1f", (ms - mt) / ms * 100 }
+    }')
+    if [ "$i" -eq 0 ]; then
+      w="\\textbf{${op}}"
+    else
+      w="${op}"
+    fi
+    echo "  & ${w} & \$${m_single} \\pm ${s_single}\$ & \$${m_tree} \\pm ${s_tree}\$ & ${speedup}\\% \\\\" >> "$tex_file"
+    i=$(( i + 1 ))
+  done
+  echo "\\midrule" >> "$tex_file"
+}
+
 print_summary
+print_latex_rows "commons-compress"
 
 echo
 log "Class-load source summary per workload"

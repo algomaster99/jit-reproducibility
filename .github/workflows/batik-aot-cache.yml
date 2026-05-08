@@ -187,6 +187,17 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Append LaTeX table rows to summary
+        working-directory: batik-experiment
+        run: |
+          {
+            echo "## LaTeX table rows (single=monolithic, tree=merged)"
+            echo
+            echo '```latex'
+            cat workload-tmp/latex-rows.tex
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # ── artifact summary ───────────────────────────────────────────────────
 
       - name: Write artifact summary
