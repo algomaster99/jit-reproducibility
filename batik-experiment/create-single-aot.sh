@@ -41,6 +41,7 @@ rm -f "$SINGLE_CONF" "$SINGLE_AOT"
 # miss the cache, making the gap between single.aot and tree.aot clearly visible.
 log "Step 1/2 — recording AOT configuration (training op: svg-to-svg)"
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
+  -XX:+AOTClassLinking \
   "${JAVA_ARGS[@]}" "$MAIN" svg-to-svg "$WORK_DIR"
 
 [[ -f "$SINGLE_CONF" ]] || fail "AOT configuration file was not produced"
@@ -50,6 +51,7 @@ log "Step 2/2 — creating single.aot from configuration"
 java -XX:AOTMode=create \
   -XX:AOTConfiguration="$SINGLE_CONF" \
   -XX:AOTCache="$SINGLE_AOT" \
+  -XX:+AOTClassLinking \
   "${JAVA_ARGS[@]}"
 
 [[ -f "$SINGLE_AOT" ]] || fail "single.aot was not created"

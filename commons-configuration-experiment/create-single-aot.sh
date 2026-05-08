@@ -86,6 +86,7 @@ java \
 # builder classes. xml-read, composite-read, and interpolation will all miss
 # the cache, giving tree.aot the widest possible class-load gap.
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
+  -XX:+AOTClassLinking \
   --add-opens java.base/java.io=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
   --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
@@ -97,6 +98,7 @@ test -f "$SINGLE_CONF"
 
 java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
   -XX:AOTCache="$SINGLE_AOT" \
+  -XX:+AOTClassLinking \
   --add-opens java.base/java.io=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
   --add-opens java.base/java.lang.reflect=ALL-UNNAMED \

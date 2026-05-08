@@ -110,6 +110,7 @@ run_mode_op() {
       ;;
     monolithic)
       "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" \
+        -XX:+AOTClassLinking \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -188,6 +189,7 @@ print_class_load_row() {
       ;;
     monolithic)
       "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" \
+        -XX:+AOTClassLinking \
         -Xlog:class+load:file="$classload_log" \
         --add-modules java.instrument \
         --add-opens java.base/java.io=ALL-UNNAMED \

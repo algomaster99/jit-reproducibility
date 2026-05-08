@@ -75,7 +75,7 @@ _stddev() {
 # ─── run helpers ─────────────────────────────────────────────────────────────
 
 _run_no()     { "$JAVA_NO_BIN"     "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
-_run_monolithic() { "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
+_run_monolithic() { "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" -XX:+AOTClassLinking "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
 _run_merged()   { "$JAVA_MERGED_BIN"   -XX:AOTCache="$MERGED_AOT"   "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
 
 _measure() {
@@ -101,7 +101,7 @@ _classload_row() {
   local logfile="$WORK_DIR/cl-${op}-${mode}.log"
   case "$mode" in
     no)     "$JAVA_NO_BIN"     -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
-    monolithic) "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
+    monolithic) "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" -XX:+AOTClassLinking -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
     merged)     "$JAVA_MERGED_BIN"     -XX:AOTCache="$MERGED_AOT"     -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
   esac
   printf "  %-14s | %-6s | %8s | %8s\n" "$op" "$mode" \

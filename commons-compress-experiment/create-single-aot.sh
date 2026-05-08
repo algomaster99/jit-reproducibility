@@ -80,6 +80,7 @@ java \
 # list-archives will all miss the cache, maximising the gap vs tree.aot (which
 # was trained on the full test suite covering all four ops).
 java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
+  -XX:+AOTClassLinking \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -92,6 +93,7 @@ test -f "$SINGLE_CONF"
 
 java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
   -XX:AOTCache="$SINGLE_AOT" \
+  -XX:+AOTClassLinking \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
