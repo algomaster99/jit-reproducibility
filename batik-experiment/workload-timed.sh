@@ -16,7 +16,7 @@ TREE_AOT="tree.aot"
 
 # Override any of these with environment variables before running:
 #   RUNS=20 JAVA_TREE_BIN=/path/to/java24 ./workload-timed.sh
-RUNS="${RUNS:-10}"
+RUNS="${RUNS:-30}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
 JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
 JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
