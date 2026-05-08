@@ -28,6 +28,8 @@ CACHE_PATHS=(
 )
 
 FAT_JAR="benchmark/target/benchmark-fat.jar"
+MAIN="dev.batikexp.Main"
+WORK_DIR="workload-tmp"
 OUTPUT_AOT="tree.aot"
 
 [[ -f "$FAT_JAR" ]] || fail "$FAT_JAR not found — run: cd benchmark && mvn package -DskipTests"
@@ -39,9 +41,13 @@ done
 BASE_AOT="${CACHE_PATHS[0]}"
 MERGE_INPUTS="$(IFS=:; echo "${CACHE_PATHS[*]}")"
 
+mkdir -p "$WORK_DIR"
+log "Preparing workload inputs"
+java -Djava.awt.headless=true -cp "$FAT_JAR" "$MAIN" prepare "$WORK_DIR"
+
 rm -f "$OUTPUT_AOT"
 
-log "Merging ${#CACHE_PATHS[@]} caches → $OUTPUT_AOT"
+log "Merging ${#CACHE_PATHS[@]} caches → $OUTPUT_AOT (training op: svg-to-svg)"
 java -Xlog:aot=info \
   -Xlog:aot+link:file="aotlink-tree-create.log" \
   -XX:AOTMode=merge \
@@ -50,7 +56,7 @@ java -Xlog:aot=info \
   -XX:AOTMergeInputs="$MERGE_INPUTS" \
   -XX:AOTCacheOutput="$OUTPUT_AOT" \
   -cp "$FAT_JAR" \
-  -version
+  "$MAIN" svg-to-svg "$WORK_DIR"
 
 [[ -f "$OUTPUT_AOT" ]] || fail "tree.aot was not created"
 log "$OUTPUT_AOT created ($(du -sh "$OUTPUT_AOT" | cut -f1))"

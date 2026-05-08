@@ -17,18 +17,24 @@ CACHE_PATHS=(
   "commons-compress/cache.aot"
 )
 
+# Order must match CP in workload-timed.sh exactly — AOT cache fingerprint
+# includes the full classpath string.
+BENCH_JAR="benchmark/target/original-benchmark-1.0-SNAPSHOT.jar"
+MAIN="dev.compressexp.Main"
+WORK_DIR="workload-tmp"
 JAR_PATHS=(
+  "$BENCH_JAR"
+  "commons-compress/target/classes"
   "commons-compress-deps/commons-lang/target/classes"
   "commons-compress-deps/commons-codec/target/classes"
   "commons-compress-deps/apache-commons-io/target/classes"
-  "commons-compress/target/classes"
 )
 
 for path in "${CACHE_PATHS[@]}"; do
   [[ -f "$path" ]] || fail "Missing required input: $path"
 done
 for path in "${JAR_PATHS[@]}"; do
-  [[ -d "$path" ]] || fail "Missing required input: $path"
+  [[ -e "$path" ]] || fail "Missing required input: $path"
 done
 
 BASE_AOT="commons-compress/cache.aot"
@@ -36,9 +42,21 @@ OUTPUT_AOT="tree.aot"
 MERGE_INPUTS="$(IFS=:; echo "${CACHE_PATHS[*]}")"
 CLASSPATH="$(IFS=:; echo "${JAR_PATHS[*]}")"
 
+mkdir -p "$WORK_DIR"
+log "Preparing workload inputs"
+java \
+  --add-modules java.instrument \
+  --add-opens java.base/java.io=ALL-UNNAMED \
+  --add-opens java.base/java.lang=ALL-UNNAMED \
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens java.base/java.time=ALL-UNNAMED \
+  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+  --add-opens java.base/java.util=ALL-UNNAMED \
+  -cp "$CLASSPATH" "$MAIN" prepare "$WORK_DIR"
+
 rm -f "$OUTPUT_AOT"
 
-log "Merging ${#CACHE_PATHS[@]} caches into $OUTPUT_AOT"
+log "Merging ${#CACHE_PATHS[@]} caches into $OUTPUT_AOT (training op: gzip-roundtrip)"
 java -Xlog:aot \
   -Xlog:aot=info \
   -Xlog:aot+link:file="aotlink-tree-create.log" \
@@ -54,7 +72,7 @@ java -Xlog:aot \
   -XX:AOTMergeInputs="$MERGE_INPUTS" \
   -XX:AOTCacheOutput="$OUTPUT_AOT" \
   -cp "$CLASSPATH" \
-  -version
+  "$MAIN" gzip-roundtrip "$WORK_DIR"
 
 [[ -f "$OUTPUT_AOT" ]] || fail "tree.aot was not created"
 log "$OUTPUT_AOT created ($(du -sh "$OUTPUT_AOT" | cut -f1))"

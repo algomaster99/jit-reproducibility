@@ -21,16 +21,20 @@ CACHE_PATHS=(
     "commons-configuration/cache.aot"
 )
 
-# ── Classpath entries ─────────────────────────────────────────────────────────
-# commons-logging uses the shaded workload fat jar (no test suite — workload jar
-# is what cache.aot was recorded against). All others use target/classes.
+# ── Benchmark + classpath ─────────────────────────────────────────────────────
+# Order must match CP in workload-timed.sh exactly — AOT cache fingerprint
+# includes the full classpath string.
+BENCH_JAR="benchmark/target/original-benchmark-1.0-SNAPSHOT.jar"
+MAIN="dev.configexp.Main"
+WORK_DIR="workload-tmp"
 CP_ENTRIES=(
+    "$BENCH_JAR"
+    "commons-configuration/target/classes"
     "commons-configuration-deps/commons-lang/target/classes"
     "commons-configuration-deps/commons-text/target/classes"
     "commons-configuration-deps/commons-beanutils/target/classes"
     "commons-configuration-deps/commons-collections/target/classes"
     "commons-configuration-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar"
-    "commons-configuration/target/classes"
 )
 
 MISSING=0
@@ -48,9 +52,20 @@ OUTPUT_AOT="tree.aot"
 MERGE_INPUTS="$(IFS=:; echo "${CACHE_PATHS[*]}")"
 CLASSPATH="$(IFS=:; echo "${CP_ENTRIES[*]}")"
 
+mkdir -p "$WORK_DIR"
+log "Preparing workload inputs"
+java \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CLASSPATH" "$MAIN" prepare "$WORK_DIR"
+
 rm -f "$OUTPUT_AOT"
 
-log "Creating $OUTPUT_AOT (base=$BASE_AOT, ${#CACHE_PATHS[@]} inputs)"
+log "Creating $OUTPUT_AOT (base=$BASE_AOT, ${#CACHE_PATHS[@]} inputs, training op: properties-read)"
 java -Xlog:aot \
     -Xlog:aot=info \
     -Xlog:aot+link:file="aotlink-tree-create.log" \
@@ -65,7 +80,7 @@ java -Xlog:aot \
     -XX:AOTMergeInputs="$MERGE_INPUTS" \
     -XX:AOTCacheOutput="$OUTPUT_AOT" \
     -cp "$CLASSPATH" \
-    -version
+    "$MAIN" properties-read "$WORK_DIR"
 
 [[ -f "$OUTPUT_AOT" ]] || fail "tree.aot was not created"
 log "$OUTPUT_AOT created ($(du -sh "$OUTPUT_AOT" | cut -f1))"
