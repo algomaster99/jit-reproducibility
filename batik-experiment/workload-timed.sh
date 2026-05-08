@@ -63,6 +63,15 @@ _median() {
     }'
 }
 
+_stddev() {
+  printf "%s\n" ${_samples[$1]:-} | awk '
+    {sum+=$1; sumsq+=$1*$1; n++}
+    END{
+      if(n<2){print "n/a"}
+      else{printf "%.1f",sqrt((sumsq-sum*sum/n)/(n-1))}
+    }'
+}
+
 # ─── run helpers ─────────────────────────────────────────────────────────────
 
 _run_no()     { "$JAVA_NO_BIN"     "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
@@ -119,15 +128,15 @@ done
 echo
 log "Aggregated timing over $RUNS runs (ms) — lower is better"
 sep
-printf "  %-14s | %9s %7s %7s | %11s %7s %7s | %9s %7s %7s\n" \
-  "Operation" "no-med" "no-min" "no-max" "single-med" "sng-min" "sng-max" "tree-med" "tr-min" "tr-max"
+printf "  %-14s | %9s %7s %7s %7s | %11s %7s %7s %7s | %9s %7s %7s %7s\n" \
+  "Operation" "no-med" "no-min" "no-max" "no-std" "single-med" "sng-min" "sng-max" "sng-std" "tree-med" "tr-min" "tr-max" "tr-std"
 sep
 for op in "${OPS[@]}"; do
-  printf "  %-14s | %9s %7s %7s | %11s %7s %7s | %9s %7s %7s\n" \
+  printf "  %-14s | %9s %7s %7s %7s | %11s %7s %7s %7s | %9s %7s %7s %7s\n" \
     "$op" \
-    "$(_median "${op}|no")"     "${_min[${op}|no]:-n/a}"     "${_max[${op}|no]:-n/a}" \
-    "$(_median "${op}|single")" "${_min[${op}|single]:-n/a}" "${_max[${op}|single]:-n/a}" \
-    "$(_median "${op}|tree")"   "${_min[${op}|tree]:-n/a}"   "${_max[${op}|tree]:-n/a}"
+    "$(_median "${op}|no")"     "${_min[${op}|no]:-n/a}"     "${_max[${op}|no]:-n/a}"     "$(_stddev "${op}|no")" \
+    "$(_median "${op}|single")" "${_min[${op}|single]:-n/a}" "${_max[${op}|single]:-n/a}" "$(_stddev "${op}|single")" \
+    "$(_median "${op}|tree")"   "${_min[${op}|tree]:-n/a}"   "${_max[${op}|tree]:-n/a}"   "$(_stddev "${op}|tree")"
 done
 
 echo

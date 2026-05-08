@@ -89,6 +89,18 @@ median_for_key() {
   '
 }
 
+stddev_for_key() {
+  local key="$1"
+  local values="${samples[$key]# }"
+  printf "%s\n" $values | awk '
+    { sum += $1; sumsq += $1*$1; n++ }
+    END {
+      if (n < 2) { print "n/a" }
+      else { printf "%.1f", sqrt((sumsq - sum*sum/n) / (n-1)) }
+    }
+  '
+}
+
 run_mode_op() {
   local mode="$1"
   local op="$2"
@@ -150,15 +162,15 @@ print_summary() {
   echo
   log "Aggregated timing over ${RUNS} runs (ms)"
   sep
-  printf "  %-16s | %10s %6s %6s | %12s %8s %8s | %10s %6s %6s\n" \
-    "Operation" "no-med" "no-min" "no-max" "single-med" "single-min" "single-max" "tree-med" "tree-min" "tree-max"
+  printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
+    "Operation" "no-med" "no-min" "no-max" "no-std" "single-med" "sng-min" "sng-max" "sng-std" "tree-med" "tr-min" "tr-max" "tr-std"
   local op
   for op in "${OPS[@]}"; do
-    printf "  %-16s | %10s %6s %6s | %12s %8s %8s | %10s %6s %6s\n" \
+    printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
       "$op" \
-      "$(median_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" \
-      "$(median_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" \
-      "$(median_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}"
+      "$(median_for_key "${op}|no")" "${minv[${op}|no]:-n/a}" "${maxv[${op}|no]:-n/a}" "$(stddev_for_key "${op}|no")" \
+      "$(median_for_key "${op}|single")" "${minv[${op}|single]:-n/a}" "${maxv[${op}|single]:-n/a}" "$(stddev_for_key "${op}|single")" \
+      "$(median_for_key "${op}|tree")" "${minv[${op}|tree]:-n/a}" "${maxv[${op}|tree]:-n/a}" "$(stddev_for_key "${op}|tree")"
   done
 }
 
