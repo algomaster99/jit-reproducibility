@@ -234,25 +234,36 @@ print_latex_rows() {
   local n="${#OPS[@]}"
   local i=0
   local tex_file="$WORK_DIR/latex-rows.tex"
-  echo "\\multirow{${n}}{*}{${project}}" > "$tex_file"
+  local sum_su_mono=0 sum_su_merged=0
+  echo "\\multirow{$(( n + 1 ))}{*}{${project}}" > "$tex_file"
   for op in "${OPS[@]}"; do
-    local m_mono m_merged s_mono s_merged speedup w
+    local m_no m_mono m_merged s_no s_mono s_merged su_mono su_merged w
+    m_no=$(mean_for_key "${op}|no")
     m_mono=$(mean_for_key "${op}|monolithic")
     m_merged=$(mean_for_key "${op}|merged")
+    s_no=$(stddev_for_key "${op}|no")
     s_mono=$(stddev_for_key "${op}|monolithic")
     s_merged=$(stddev_for_key "${op}|merged")
-    speedup=$(awk -v ms="$m_mono" -v mt="$m_merged" 'BEGIN {
-      if (ms+0 == 0) { print "n/a" }
-      else { printf "%+.1f", (ms - mt) / ms * 100 }
+    su_mono=$(awk -v base="$m_no" -v aot="$m_mono" 'BEGIN {
+      if (aot+0 == 0) { print "n/a" } else { printf "%.2f", base/aot }
     }')
+    su_merged=$(awk -v base="$m_no" -v aot="$m_merged" 'BEGIN {
+      if (aot+0 == 0) { print "n/a" } else { printf "%.2f", base/aot }
+    }')
+    sum_su_mono=$(awk  "BEGIN{printf \"%.4f\", $sum_su_mono  + $su_mono}")
+    sum_su_merged=$(awk "BEGIN{printf \"%.4f\", $sum_su_merged + $su_merged}")
     if [ "$i" -eq 0 ]; then
       w="\\textbf{${op}}"
     else
       w="${op}"
     fi
-    echo "  & ${w} & \$${m_mono} \\pm ${s_mono}\$ & \$${m_merged} \\pm ${s_merged}\$ & ${speedup}\\% \\\\" >> "$tex_file"
+    echo "  & ${w} & \$${m_no} \\pm ${s_no}\$ & \$${m_mono} \\pm ${s_mono}\$ & ${su_mono}x & \$${m_merged} \\pm ${s_merged}\$ & ${su_merged}x \\\\" >> "$tex_file"
     i=$(( i + 1 ))
   done
+  local avg_mono avg_merged
+  avg_mono=$(awk  -v s="$sum_su_mono"   -v n="$n" 'BEGIN{printf "%.2f", s/n}')
+  avg_merged=$(awk -v s="$sum_su_merged" -v n="$n" 'BEGIN{printf "%.2f", s/n}')
+  echo "  & \\textit{Average} & & & ${avg_mono}x & & ${avg_merged}x \\\\" >> "$tex_file"
   echo "\\midrule" >> "$tex_file"
 }
 
