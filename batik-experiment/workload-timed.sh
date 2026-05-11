@@ -173,10 +173,12 @@ _print_latex_rows() {
     echo "  & ${w} & \$${m_no} \\pm ${s_no}\$ & \$${m_mono} \\pm ${s_mono}\$ & ${fmt_su_mono} & \$${m_merged} \\pm ${s_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
     i=$(( i + 1 ))
   done
-  local avg_mono avg_merged
+  local avg_mono avg_merged fmt_avg_mono fmt_avg_merged
   avg_mono=$(awk  -v s="$sum_su_mono"   -v n="$n" 'BEGIN{printf "%.2f", s/n}')
   avg_merged=$(awk -v s="$sum_su_merged" -v n="$n" 'BEGIN{printf "%.2f", s/n}')
-  echo "  & \\textit{Average} & & & ${avg_mono}x & & ${avg_merged}x \\\\" >> "$tex_file"
+  fmt_avg_mono=$(awk   -v a="$avg_mono" -v b="$avg_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
+  fmt_avg_merged=$(awk -v a="$avg_mono" -v b="$avg_merged" 'BEGIN{if(b+0>a+0) print "\\textbf{"b"x}" ; else print b"x"}')
+  echo "  & \\textit{Average} & & & ${fmt_avg_mono} & & ${fmt_avg_merged} \\\\" >> "$tex_file"
   echo "\\midrule" >> "$tex_file"
 }
 
