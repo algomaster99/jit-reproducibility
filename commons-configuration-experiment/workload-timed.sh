@@ -252,12 +252,15 @@ print_latex_rows() {
     }')
     sum_su_mono=$(awk  "BEGIN{printf \"%.4f\", $sum_su_mono  + $su_mono}")
     sum_su_merged=$(awk "BEGIN{printf \"%.4f\", $sum_su_merged + $su_merged}")
+    local fmt_su_mono fmt_su_merged
+    fmt_su_mono=$(awk -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
+    fmt_su_merged=$(awk -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(b+0>a+0) print "\\textbf{"b"x}" ; else print b"x"}')
     if [ "$i" -eq 0 ]; then
       w="\\textbf{${op}}"
     else
       w="${op}"
     fi
-    echo "  & ${w} & \$${m_no} \\pm ${s_no}\$ & \$${m_mono} \\pm ${s_mono}\$ & ${su_mono}x & \$${m_merged} \\pm ${s_merged}\$ & ${su_merged}x \\\\" >> "$tex_file"
+    echo "  & ${w} & \$${m_no} \\pm ${s_no}\$ & \$${m_mono} \\pm ${s_mono}\$ & ${fmt_su_mono} & \$${m_merged} \\pm ${s_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
     i=$(( i + 1 ))
   done
   local avg_mono avg_merged
