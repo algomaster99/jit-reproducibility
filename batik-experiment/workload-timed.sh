@@ -21,7 +21,7 @@ JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
 JAVA_MONOLITHIC_BIN="${JAVA_MONOLITHIC_BIN:-java}"
 JAVA_MERGED_BIN="${JAVA_MERGED_BIN:-java}"
 
-OPS=(svg-to-svg svg-parse svg-to-png svg-to-jpeg svg-generate)
+OPS=(svg-parse svg-to-png svg-to-jpeg svg-generate)
 
 [[ -f "$FAT_JAR" ]]   || fail "$FAT_JAR not found — run: cd benchmark && mvn package -DskipTests"
 [[ -f "$MONOLITHIC_AOT" ]] || fail "single.aot not found — run ./create-single-aot.sh first"
