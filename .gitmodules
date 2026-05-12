@@ -66,3 +66,7 @@
 	path = thymeleaf-experiment/thymeleaf-deps/slf4j
 	url = git@github.com:algomaster99/slf4j.git
 	branch = aotcache-setup
+[submodule "thymeleaf-experiment/thymeleaf"]
+	path = thymeleaf-experiment/thymeleaf
+	url = git@github.com:algomaster99/thymeleaf.git
+	branch = aotcache-setup
