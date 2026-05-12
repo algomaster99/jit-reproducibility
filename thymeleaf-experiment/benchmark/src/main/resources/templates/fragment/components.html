@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+  <header th:fragment="header(heading)">
+    <h1 th:text="${heading}">Heading</h1>
+    <nav><a href="#">Home</a> | <a href="#">Catalog</a> | <a href="#">About</a></nav>
+  </header>
+
+  <section th:fragment="itemList(items)">
+    <ul>
+      <li th:each="item,stat : ${items}">
+        <span th:text="${stat.count}">1</span>.
+        <strong th:text="${item.name}">Name</strong>
+        &mdash;
+        <em th:text="${item.category}">Category</em>
+        (ID: <span th:text="${item.id}">0</span>)
+      </li>
+    </ul>
+  </section>
+
+  <footer th:fragment="footer(text)" th:text="${text}">Footer</footer>
+
+</body>
+</html>

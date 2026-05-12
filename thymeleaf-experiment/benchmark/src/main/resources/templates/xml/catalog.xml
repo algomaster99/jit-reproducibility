@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns:th="http://www.thymeleaf.org">
+  <title th:text="${title}">Catalog Title</title>
+  <description th:text="${description}">Description</description>
+  <entry th:each="item : ${items}">
+    <id th:text="${item.id}">0</id>
+    <name th:text="${item.name}">Name</name>
+    <category th:text="${item.category}">Category</category>
+  </entry>
+  <footer th:if="${showFooter}" th:text="${footerText}">Footer</footer>
+</catalog>

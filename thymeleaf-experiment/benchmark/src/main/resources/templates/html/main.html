@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${title}">Title</title>
+</head>
+<body>
+  <h1 th:text="${heading}">Heading</h1>
+  <p th:text="${description}">Description</p>
+  <ul>
+    <li th:each="item,stat : ${items}">
+      <span th:text="${stat.count}">1</span>.
+      <strong th:text="${item.name}">Name</strong>
+      &mdash;
+      <em th:text="${item.category}">Category</em>
+      (ID: <span th:text="${item.id}">0</span>)
+    </li>
+  </ul>
+  <footer th:if="${showFooter}" th:text="${footerText}">Footer</footer>
+</body>
+</html>

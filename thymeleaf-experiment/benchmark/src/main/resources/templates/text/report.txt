@@ -1,0 +1,11 @@
+[(${title})]
+========================================
+[(${heading})]
+
+[(${description})]
+
+Items:
+[# th:each="item,stat : ${items}"]  [(${stat.count})]. [(${item.name})] — [(${item.category})] (ID: [(${item.id})])
+[/]
+
+[(${showFooter} ? footerText : 'No footer')]

@@ -1,0 +1,227 @@
+name: Thymeleaf Distributed AOT Cache
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      single_aot_jdk:
+        description: 'JDK version used for single.aot and the no-AOT baseline'
+        required: false
+        default: '24'
+        type: choice
+        options:
+          - '25'
+          - '24'
+
+jobs:
+  tree-combine:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Download custom JDK
+        uses: ./.github/actions/download-custom-jdk
+
+      - name: Set up custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-thymeleaf-${{ hashFiles('thymeleaf-experiment/**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-thymeleaf-
+            ${{ runner.os }}-maven-
+
+      # Install thymeleaf into local Maven repo so thymeleaf-tests-core and
+      # the benchmark can resolve org.thymeleaf:thymeleaf:3.1.5.RELEASE locally.
+      - name: Install thymeleaf into local Maven repo
+        working-directory: thymeleaf-experiment/thymeleaf
+        run: mvn install -DskipTests -q
+
+      # ── dep test-suite caches ──────────────────────────────────────────────
+
+      - name: Build thymeleaf-tests-core cache (tree-merge)
+        working-directory: thymeleaf-experiment/thymeleaf/tests/thymeleaf-tests-core
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build attoparser cache (tree-merge)
+        working-directory: thymeleaf-experiment/thymeleaf-deps/attoparser
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build ognl cache (tree-merge)
+        working-directory: thymeleaf-experiment/thymeleaf-deps/ognl
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -q
+          test -f cache.aot
+
+      - name: Build slf4j-api cache (tree-merge)
+        working-directory: thymeleaf-experiment/thymeleaf-deps/slf4j
+        run: |
+          set -euo pipefail
+          find . -name "*.aot" -type f -delete
+          mvn clean test -Ptree-merge -pl slf4j-api -q
+          test -f slf4j-api/cache.aot
+
+      # ── workload cache (unbescape has no tests — fat jar workload) ─────────
+
+      - name: Build and record unbescape-workload cache
+        working-directory: thymeleaf-experiment/thymeleaf-deps/unbescape-workload
+        run: |
+          set -euo pipefail
+          mvn package -DskipTests -q
+          java -XX:AOTCacheOutput=cache.aot -jar target/unbescape-workload-fat.jar
+          test -f cache.aot
+
+      # ── benchmark fat jar ──────────────────────────────────────────────────
+
+      - name: Build benchmark fat jar
+        working-directory: thymeleaf-experiment/benchmark
+        run: mvn package -DskipTests -q
+
+      # ── single.aot (Temurin — standard JDK for the no-AOT baseline) ───────
+
+      - name: Set up JDK ${{ inputs.single_aot_jdk || '24' }} (no-AOT baseline and single.aot)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.single_aot_jdk || '24' }}
+
+      - name: Capture Temurin JDK path
+        run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Create single.aot (JDK ${{ inputs.single_aot_jdk || '24' }})
+        working-directory: thymeleaf-experiment
+        run: |
+          set -euo pipefail
+          chmod +x create-single-aot.sh
+          ./create-single-aot.sh
+          test -f single.aot
+
+      # ── tree.aot (custom JDK — has the AOT merge capability) ──────────────
+
+      - name: Re-enable custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
+
+      - name: Create tree.aot (orchestrate-combine.sh)
+        working-directory: thymeleaf-experiment
+        run: |
+          set -euo pipefail
+          chmod +x orchestrate-combine.sh
+          combine_out=$(./orchestrate-combine.sh 2>&1) || { echo "$combine_out"; exit 1; }
+          echo "$combine_out"
+          combine_out_clean=$(echo "$combine_out" | sed 's/\x1B\[[0-9;]*m//g')
+
+          tree_size=$(du -h tree.aot | awk '{print $1}')
+
+          {
+            echo "## tree.aot creation (orchestrate-combine)"
+            echo
+            echo "- tree.aot: ${tree_size}"
+            echo
+            echo '```'
+            echo "$combine_out_clean"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          test -f tree.aot
+
+      # ── timed workload ─────────────────────────────────────────────────────
+
+      - name: Run timed workload
+        working-directory: thymeleaf-experiment
+        run: |
+          set -euo pipefail
+          chmod +x workload-timed.sh
+          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" \
+                   JAVA_MONOLITHIC_BIN="$TEMURIN_JAVA_HOME/bin/java" \
+                   JAVA_MERGED_BIN="$JAVA_HOME/bin/java" \
+                   ./workload-timed.sh 2>&1) || { echo "$wl_out"; exit 1; }
+          echo "$wl_out"
+          wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
+
+          single_size=$(du -h single.aot | awk '{print $1}')
+          tree_size=$(du -h tree.aot | awk '{print $1}')
+
+          {
+            echo "## Timed workload results (no-AOT vs single vs tree)"
+            echo
+            echo "- single.aot: ${single_size}"
+            echo "- tree.aot: ${tree_size}"
+            echo
+            echo '```'
+            echo "$wl_out_clean"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Append LaTeX table rows to summary
+        working-directory: thymeleaf-experiment
+        run: |
+          {
+            echo "## LaTeX table rows (single=monolithic, tree=merged)"
+            echo
+            echo '```latex'
+            cat workload-tmp/latex-rows.tex
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── artifact summary ───────────────────────────────────────────────────
+
+      - name: Write artifact summary
+        working-directory: thymeleaf-experiment
+        run: |
+          {
+            echo "## Distributed AOT artifact summary"
+            echo
+            echo "| Artifact | Cache path | Size |"
+            echo "|---|---|---|"
+            echo "| thymeleaf-tests-core | \`thymeleaf/tests/thymeleaf-tests-core/cache.aot\` | $(du -h thymeleaf/tests/thymeleaf-tests-core/cache.aot | awk '{print $1}') |"
+            echo "| attoparser | \`thymeleaf-deps/attoparser/cache.aot\` | $(du -h thymeleaf-deps/attoparser/cache.aot | awk '{print $1}') |"
+            echo "| ognl | \`thymeleaf-deps/ognl/cache.aot\` | $(du -h thymeleaf-deps/ognl/cache.aot | awk '{print $1}') |"
+            echo "| slf4j-api | \`thymeleaf-deps/slf4j/slf4j-api/cache.aot\` | $(du -h thymeleaf-deps/slf4j/slf4j-api/cache.aot | awk '{print $1}') |"
+            echo "| unbescape | \`thymeleaf-deps/unbescape-workload/cache.aot\` | $(du -h thymeleaf-deps/unbescape-workload/cache.aot | awk '{print $1}') |"
+            echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
+            echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── upload ─────────────────────────────────────────────────────────────
+
+      - name: Upload Thymeleaf workload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: thymeleaf-tree-artifacts
+          path: |
+            thymeleaf-experiment/workload-tmp/
+            thymeleaf-experiment/aotlink-tree-create.log
+            thymeleaf-experiment/single.aot
+            thymeleaf-experiment/tree.aot
+            thymeleaf-experiment/thymeleaf/tests/thymeleaf-tests-core/cache.aot
+            thymeleaf-experiment/thymeleaf-deps/attoparser/cache.aot
+            thymeleaf-experiment/thymeleaf-deps/ognl/cache.aot
+            thymeleaf-experiment/thymeleaf-deps/slf4j/slf4j-api/cache.aot
+            thymeleaf-experiment/thymeleaf-deps/unbescape-workload/cache.aot
+          if-no-files-found: error
