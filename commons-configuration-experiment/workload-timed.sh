@@ -125,7 +125,8 @@ run_merged() {
 measure_ms() {
   local label_op="$1" label_mode="$2"
   shift 2
-  local err_file="$WORK_DIR/${RUN_IDX:-0}-${label_op}-${label_mode}.stderr.log"
+  local file_label_op="${label_op//>/-to-}"
+  local err_file="$WORK_DIR/${RUN_IDX:-0}-${file_label_op}-${label_mode}.stderr.log"
   local start end rc
   start=$(ms)
   "$@" >/dev/null 2>"$err_file"
