@@ -16,8 +16,7 @@ commons-configuration-deps/commons-text/target/classes:\
 commons-configuration-deps/commons-beanutils/target/classes:\
 commons-configuration-deps/commons-collections/target/classes:\
 commons-configuration-deps/commons-logging-workload/target/commons-logging-workload-1.0-SNAPSHOT.jar"
-# single.aot was recorded against JARs (directories are rejected by stock JDKs),
-# so the single mode must use the same JAR-based classpath to avoid cache rejection.
+# single-{op}.aot caches are recorded against JARs; use the JAR-based classpath.
 SINGLE_DEPS_DIR="single-aot-deps"
 MONOLITHIC_CP="$JAR:\
 $SINGLE_DEPS_DIR/commons-configuration2-2.14.0.jar:\
@@ -28,7 +27,6 @@ $SINGLE_DEPS_DIR/commons-beanutils-1.11.0.jar:\
 $SINGLE_DEPS_DIR/commons-collections4-4.5.0.jar"
 MAIN="dev.configexp.Main"
 WORK_DIR="workload-tmp"
-MONOLITHIC_AOT="single.aot"
 MERGED_AOT="tree.aot"
 RUNS="${RUNS:-30}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
@@ -37,20 +35,19 @@ JAVA_MERGED_BIN="${JAVA_MERGED_BIN:-java}"
 OPS=("properties-read" "xml-read" "composite-read" "interpolation")
 
 [[ -f "$JAR" ]] || fail "$JAR not found — run: cd benchmark && mvn package -DskipTests"
-[[ -f "$MONOLITHIC_AOT" ]] || fail "single.aot not found — run create-single-aot.sh first"
+for _op in "${OPS[@]}"; do
+  [[ -f "single-${_op}.aot" ]] || fail "single-${_op}.aot not found — run create-single-aot.sh first"
+done
 [[ -f "$MERGED_AOT" ]] || fail "tree.aot not found — run orchestrate-combine.sh first"
 
 mkdir -p "$WORK_DIR"
 
 log "Java version(s):"
-echo "no-AOT java:     $JAVA_NO_BIN"
-"$JAVA_NO_BIN" -version
+echo "no-AOT java:         $JAVA_NO_BIN";         "$JAVA_NO_BIN"         -version
 echo
-echo "monolithic-AOT java: $JAVA_MONOLITHIC_BIN"
-"$JAVA_MONOLITHIC_BIN" -version
+echo "monolithic-AOT java: $JAVA_MONOLITHIC_BIN"; "$JAVA_MONOLITHIC_BIN" -version
 echo
-echo "merged-AOT java:     $JAVA_MERGED_BIN"
-"$JAVA_MERGED_BIN" -version
+echo "merged-AOT java:     $JAVA_MERGED_BIN";     "$JAVA_MERGED_BIN"     -version
 echo
 
 "$JAVA_NO_BIN" -cp "$CP" "$MAIN" prepare "$WORK_DIR" >/dev/null
@@ -60,8 +57,7 @@ ms() { date +%s%N | awk '{printf "%.1f", $1/1000000}'; }
 declare -A minv maxv cnt samples
 
 update_stats() {
-  local key="$1"
-  local sample_ms="$2"
+  local key="$1" sample_ms="$2"
   cnt[$key]=$(( ${cnt[$key]:-0} + 1 ))
   samples[$key]="${samples[$key]:-} ${sample_ms}"
   if [ -z "${minv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} < ${minv[$key]})}"; then
@@ -73,161 +69,135 @@ update_stats() {
 }
 
 mean_for_key() {
-  local key="$1"
-  local values="${samples[$key]# }"
+  local values="${samples[$1]# }"
   printf "%s\n" $values | awk '
     { sum += $1; n++ }
-    END {
-      if (n == 0) { print "n/a" }
-      else { printf "%.1f", sum/n }
-    }
-  '
+    END { if (n == 0) { print "n/a" } else { printf "%.1f", sum/n } }'
 }
 
 stddev_for_key() {
-  local key="$1"
-  local values="${samples[$key]# }"
+  local values="${samples[$1]# }"
   printf "%s\n" $values | awk '
     { sum += $1; sumsq += $1*$1; n++ }
-    END {
-      if (n < 2) { print "n/a" }
-      else { printf "%.1f", sqrt((sumsq - sum*sum/n) / (n-1)) }
-    }
-  '
+    END { if (n < 2) { print "n/a" } else { printf "%.1f", sqrt((sumsq - sum*sum/n) / (n-1)) } }'
 }
 
-run_mode_op() {
-  local mode="$1"
-  local op="$2"
-  case "$mode" in
-    no)
-      "$JAVA_NO_BIN" \
-        --add-opens java.base/java.io=ALL-UNNAMED \
-        --add-opens java.base/java.lang=ALL-UNNAMED \
-        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-        --add-opens java.base/java.time=ALL-UNNAMED \
-        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-        --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
-      ;;
-    monolithic)
-      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" \
-        -XX:+AOTClassLinking \
-        --add-opens java.base/java.io=ALL-UNNAMED \
-        --add-opens java.base/java.lang=ALL-UNNAMED \
-        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-        --add-opens java.base/java.time=ALL-UNNAMED \
-        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-        --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$MONOLITHIC_CP" "$MAIN" "$op" "$WORK_DIR"
-      ;;
-    merged)
-      "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
-        --add-opens java.base/java.io=ALL-UNNAMED \
-        --add-opens java.base/java.lang=ALL-UNNAMED \
-        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-        --add-opens java.base/java.time=ALL-UNNAMED \
-        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-        --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
-      ;;
-    *)
-      fail "Unknown mode: $mode"
-      ;;
-  esac
+# ─── run helpers ─────────────────────────────────────────────────────────────
+
+run_no() {
+  local op="$1"
+  "$JAVA_NO_BIN" \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+}
+
+# train_op determines which single-{op}.aot to load; test_op is the workload run.
+run_mono_cross() {
+  local train_op="$1" test_op="$2"
+  "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${train_op}.aot" \
+    -XX:+AOTClassLinking \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$MONOLITHIC_CP" "$MAIN" "$test_op" "$WORK_DIR"
+}
+
+run_merged() {
+  local op="$1"
+  "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
 }
 
 measure_ms() {
-  local op="$1"
-  local mode="$2"
+  local label_op="$1" label_mode="$2"
   shift 2
-  local err_file="$WORK_DIR/${RUN_IDX:-0}-${op}-${mode}.stderr.log"
+  local err_file="$WORK_DIR/${RUN_IDX:-0}-${label_op}-${label_mode}.stderr.log"
   local start end rc
   start=$(ms)
   "$@" >/dev/null 2>"$err_file"
   rc=$?
   if [ "$rc" -ne 0 ]; then
-    echo "ERROR: failed (op=$op mode=$mode rc=$rc) see $err_file" >&2
+    echo "ERROR: failed (op=$label_op mode=$label_mode rc=$rc) see $err_file" >&2
     return "$rc"
   fi
   end=$(ms)
   awk "BEGIN {printf \"%.1f\", $end - $start}"
 }
 
-print_summary() {
-  echo
-  log "Aggregated timing over ${RUNS} runs (ms)"
-  sep
-  printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
-    "Operation" "no-mean" "no-min" "no-max" "no-std" "mono-mean" "mono-min" "mono-max" "mono-std" "merged-mean" "mg-min" "mg-max" "mg-std"
-  local op
-  for op in "${OPS[@]}"; do
-    printf "  %-16s | %10s %6s %6s %6s | %12s %8s %8s %8s | %10s %6s %6s %6s\n" \
-      "$op" \
-      "$(mean_for_key "${op}|no")"          "${minv[${op}|no]:-n/a}"          "${maxv[${op}|no]:-n/a}"          "$(stddev_for_key "${op}|no")" \
-      "$(mean_for_key "${op}|monolithic")"  "${minv[${op}|monolithic]:-n/a}"  "${maxv[${op}|monolithic]:-n/a}"  "$(stddev_for_key "${op}|monolithic")" \
-      "$(mean_for_key "${op}|merged")"      "${minv[${op}|merged]:-n/a}"      "${maxv[${op}|merged]:-n/a}"      "$(stddev_for_key "${op}|merged")"
+# Mean over all test ops ≠ train_op.
+# mode: "no" → ${test}|no   "mono" → ${train}|${test}|mono   "merged" → ${test}|merged
+cross_mean() {
+  local train_op="$1" mode="$2"
+  local sum=0 n=0 test_op key m
+  for test_op in "${OPS[@]}"; do
+    [[ "$test_op" == "$train_op" ]] && continue
+    case "$mode" in
+      no)     key="${test_op}|no" ;;
+      mono)   key="${train_op}|${test_op}|mono" ;;
+      merged) key="${test_op}|merged" ;;
+    esac
+    m=$(mean_for_key "$key")
+    sum=$(awk "BEGIN{printf \"%.4f\", $sum + $m}")
+    n=$(( n + 1 ))
   done
+  awk -v s="$sum" -v n="$n" 'BEGIN{printf "%.1f", s/n}'
 }
 
-print_class_load_row() {
-  local mode="$1"
-  local op="$2"
-  local classload_log="$WORK_DIR/classload-${op}-${mode}.log"
-
-  case "$mode" in
-    no)
-      "$JAVA_NO_BIN" -Xlog:class+load:file="$classload_log" \
-        --add-opens java.base/java.io=ALL-UNNAMED \
-        --add-opens java.base/java.lang=ALL-UNNAMED \
-        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-        --add-opens java.base/java.time=ALL-UNNAMED \
-        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-        --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
-      ;;
-    monolithic)
-      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="$MONOLITHIC_AOT" \
-        -XX:+AOTClassLinking \
-        -Xlog:class+load:file="$classload_log" \
-        --add-opens java.base/java.io=ALL-UNNAMED \
-        --add-opens java.base/java.lang=ALL-UNNAMED \
-        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-        --add-opens java.base/java.time=ALL-UNNAMED \
-        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-        --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$MONOLITHIC_CP" "$MAIN" "$op" "$WORK_DIR"
-      ;;
-    merged)
-      "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
-        -Xlog:class+load:file="$classload_log" \
-        --add-opens java.base/java.io=ALL-UNNAMED \
-        --add-opens java.base/java.lang=ALL-UNNAMED \
-        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-        --add-opens java.base/java.time=ALL-UNNAMED \
-        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-        --add-opens java.base/java.util=ALL-UNNAMED \
-        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
-      ;;
-  esac
-
-  printf "  %-16s | %-6s | %8s | %8s\n" \
-    "$op" "$mode" \
-    "$(awk '/source: file:/{count++} END{print count+0}' "$classload_log")" \
-    "$(awk '/source: shared object[s]? file/{count++} END{print count+0}' "$classload_log")"
-}
+# ─── main measurement loop ───────────────────────────────────────────────────
 
 log "Running Commons Configuration workload RUNS=$RUNS"
 for RUN_IDX in $(seq 1 "$RUNS"); do
+  printf "  run %2d/%d\n" "$RUN_IDX" "$RUNS"
+  # no-AOT and merged: one pass over all ops
   for op in "${OPS[@]}"; do
-    no_ms=$(measure_ms "$op" "no" run_mode_op "no" "$op")
-    update_stats "${op}|no" "$no_ms"
-    monolithic_ms=$(measure_ms "$op" "monolithic" run_mode_op "monolithic" "$op")
-    update_stats "${op}|monolithic" "$monolithic_ms"
-    merged_ms=$(measure_ms "$op" "merged" run_mode_op "merged" "$op")
-    update_stats "${op}|merged" "$merged_ms"
+    update_stats "${op}|no"     "$(measure_ms "$op" "no"     run_no     "$op")"
+    update_stats "${op}|merged" "$(measure_ms "$op" "merged" run_merged "$op")"
+  done
+  # monolithic cross-workload: for each training op, run its cache on all other ops
+  for train_op in "${OPS[@]}"; do
+    for test_op in "${OPS[@]}"; do
+      [[ "$test_op" == "$train_op" ]] && continue
+      update_stats "${train_op}|${test_op}|mono" \
+        "$(measure_ms "${train_op}>${test_op}" "mono" run_mono_cross "$train_op" "$test_op")"
+    done
   done
 done
+
+# ─── results ─────────────────────────────────────────────────────────────────
+
+print_summary() {
+  echo
+  log "Cross-workload timing over ${RUNS} runs (ms) — train on X, mean of other 3 ops"
+  sep
+  printf "  %-16s | %10s | %12s %8s | %12s %8s\n" \
+    "Trained on" "no-mean" "mono-mean" "su-mono" "merged-mean" "su-merged"
+  sep
+  local train_op
+  for train_op in "${OPS[@]}"; do
+    local m_no m_mono m_merged su_mono su_merged
+    m_no=$(cross_mean "$train_op" "no")
+    m_mono=$(cross_mean "$train_op" "mono")
+    m_merged=$(cross_mean "$train_op" "merged")
+    su_mono=$(awk   -v b="$m_no" -v a="$m_mono"   'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2fx",b/a}}')
+    su_merged=$(awk -v b="$m_no" -v a="$m_merged" 'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2fx",b/a}}')
+    printf "  %-16s | %10s | %12s %8s | %12s %8s\n" \
+      "$train_op" "$m_no" "$m_mono" "$su_mono" "$m_merged" "$su_merged"
+  done
+}
 
 print_latex_rows() {
   local project="$1"
@@ -236,31 +206,20 @@ print_latex_rows() {
   local tex_file="$WORK_DIR/latex-rows.tex"
   local sum_su_mono=0 sum_su_merged=0
   echo "\\multirow{$(( n + 1 ))}{*}{${project}}" > "$tex_file"
-  for op in "${OPS[@]}"; do
-    local m_no m_mono m_merged s_no s_mono s_merged su_mono su_merged w
-    m_no=$(mean_for_key "${op}|no")
-    m_mono=$(mean_for_key "${op}|monolithic")
-    m_merged=$(mean_for_key "${op}|merged")
-    s_no=$(stddev_for_key "${op}|no")
-    s_mono=$(stddev_for_key "${op}|monolithic")
-    s_merged=$(stddev_for_key "${op}|merged")
-    su_mono=$(awk -v base="$m_no" -v aot="$m_mono" 'BEGIN {
-      if (aot+0 == 0) { print "n/a" } else { printf "%.2f", base/aot }
-    }')
-    su_merged=$(awk -v base="$m_no" -v aot="$m_merged" 'BEGIN {
-      if (aot+0 == 0) { print "n/a" } else { printf "%.2f", base/aot }
-    }')
+  local train_op
+  for train_op in "${OPS[@]}"; do
+    local m_no m_mono m_merged su_mono su_merged fmt_su_mono fmt_su_merged w
+    m_no=$(cross_mean "$train_op" "no")
+    m_mono=$(cross_mean "$train_op" "mono")
+    m_merged=$(cross_mean "$train_op" "merged")
+    su_mono=$(awk   -v b="$m_no" -v a="$m_mono"   'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2f",b/a}}')
+    su_merged=$(awk -v b="$m_no" -v a="$m_merged" 'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2f",b/a}}')
     sum_su_mono=$(awk  "BEGIN{printf \"%.4f\", $sum_su_mono  + $su_mono}")
     sum_su_merged=$(awk "BEGIN{printf \"%.4f\", $sum_su_merged + $su_merged}")
-    local fmt_su_mono fmt_su_merged
-    fmt_su_mono=$(awk -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
+    fmt_su_mono=$(awk   -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
     fmt_su_merged=$(awk -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(b+0>a+0) print "\\textbf{"b"x}" ; else print b"x"}')
-    if [ "$i" -eq 0 ]; then
-      w="\\textbf{${op}}"
-    else
-      w="${op}"
-    fi
-    echo "  & ${w} & \$${m_no} \\pm ${s_no}\$ & \$${m_mono} \\pm ${s_mono}\$ & ${fmt_su_mono} & \$${m_merged} \\pm ${s_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
+    if [ "$i" -eq 0 ]; then w="\\textbf{${train_op}}"; else w="${train_op}"; fi
+    echo "  & ${w} & \$${m_no}\$ & \$${m_mono}\$ & ${fmt_su_mono} & \$${m_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
     i=$(( i + 1 ))
   done
   local avg_mono avg_merged fmt_avg_mono fmt_avg_merged
@@ -275,8 +234,54 @@ print_latex_rows() {
 print_summary
 print_latex_rows "commons-configuration"
 
+# ─── class-load summary (same-workload monolithic for each op) ───────────────
+
+print_class_load_row() {
+  local mode="$1" op="$2"
+  local classload_log="$WORK_DIR/classload-${op}-${mode}.log"
+  case "$mode" in
+    no)
+      "$JAVA_NO_BIN" -Xlog:class+load:file="$classload_log" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    monolithic)
+      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${op}.aot" \
+        -XX:+AOTClassLinking \
+        -Xlog:class+load:file="$classload_log" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$MONOLITHIC_CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+    merged)
+      "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
+        -Xlog:class+load:file="$classload_log" \
+        --add-opens java.base/java.io=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+        --add-opens java.base/java.time=ALL-UNNAMED \
+        --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
+        -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+      ;;
+  esac
+  printf "  %-16s | %-6s | %8s | %8s\n" \
+    "$op" "$mode" \
+    "$(awk '/source: file:/{count++} END{print count+0}' "$classload_log")" \
+    "$(awk '/source: shared object[s]? file/{count++} END{print count+0}' "$classload_log")"
+}
+
 echo
-log "Class-load source summary per workload"
+log "Class-load source summary per workload (monolithic uses same-workload cache)"
 sep
 printf "  %-16s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
 for op in "${OPS[@]}"; do

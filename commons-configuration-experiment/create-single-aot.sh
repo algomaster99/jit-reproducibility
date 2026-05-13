@@ -1,4 +1,5 @@
 #!/bin/bash
+# Creates one single-{op}.aot per workload for the cross-workload experiment.
 set -euo pipefail
 
 log() { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
@@ -9,8 +10,6 @@ cd "$SCRIPT_DIR"
 log "Java version:"
 java -version
 
-SINGLE_AOT="single.aot"
-SINGLE_CONF="single.aotconf"
 BENCH_JAR="benchmark/target/original-benchmark-1.0-SNAPSHOT.jar"
 DEPS_DIR="single-aot-deps"
 MAIN="dev.configexp.Main"
@@ -18,8 +17,6 @@ WORK_DIR="workload-tmp"
 
 MAVEN_CENTRAL="https://repo1.maven.org/maven2"
 
-# Order must match SINGLE_CP in workload-timed.sh exactly — the AOT cache
-# fingerprint includes the full classpath string.
 declare -a DEP_JARS=(
   "commons-configuration2-2.14.0.jar"
   "commons-lang3-3.20.0.jar"
@@ -37,10 +34,7 @@ declare -a DEP_URLS=(
   "$MAVEN_CENTRAL/org/apache/commons/commons-collections4/4.5.0/commons-collections4-4.5.0.jar"
 )
 
-if [ -f "$SINGLE_AOT" ]; then
-  log "single.aot already exists, skipping creation."
-  exit 0
-fi
+OPS=("properties-read" "xml-read" "composite-read" "interpolation")
 
 [[ -f "$BENCH_JAR" ]] || { echo "Missing $BENCH_JAR (build benchmark first)" >&2; exit 1; }
 
@@ -64,14 +58,7 @@ $DEPS_DIR/commons-logging-1.3.6.jar:\
 $DEPS_DIR/commons-beanutils-1.11.0.jar:\
 $DEPS_DIR/commons-collections4-4.5.0.jar"
 
-log "Creating single.aot (two-step: record + create)"
-rm -f "$SINGLE_AOT"
-rm -f "$SINGLE_CONF"
-
 mkdir -p "$WORK_DIR"
-
-# prepare (not recorded) writes sample .properties and .xml files that the
-# benchmark ops read.
 java \
   --add-opens java.base/java.io=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
@@ -81,31 +68,35 @@ java \
   --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP" "$MAIN" prepare "$WORK_DIR"
 
-# Record only properties-read: loads only PropertiesConfiguration and the base
-# AbstractConfiguration hierarchy — no DOM parser, no StringSubstitutor, no
-# builder classes. xml-read, composite-read, and interpolation will all miss
-# the cache, giving tree.aot the widest possible class-load gap.
-java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
-  -XX:+AOTClassLinking \
-  --add-opens java.base/java.io=ALL-UNNAMED \
-  --add-opens java.base/java.lang=ALL-UNNAMED \
-  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-  --add-opens java.base/java.time=ALL-UNNAMED \
-  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-  --add-opens java.base/java.util=ALL-UNNAMED \
-  -cp "$CP" "$MAIN" properties-read "$WORK_DIR"
-test -f "$SINGLE_CONF"
-
-java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
-  -XX:AOTCache="$SINGLE_AOT" \
-  -XX:+AOTClassLinking \
-  --add-opens java.base/java.io=ALL-UNNAMED \
-  --add-opens java.base/java.lang=ALL-UNNAMED \
-  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-  --add-opens java.base/java.time=ALL-UNNAMED \
-  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-  --add-opens java.base/java.util=ALL-UNNAMED \
-  -cp "$CP"
-
-test -f "$SINGLE_AOT"
-log "single.aot created."
+for op in "${OPS[@]}"; do
+  aot="single-${op}.aot"
+  conf="single-${op}.aotconf"
+  if [ -f "$aot" ]; then
+    log "$aot already exists, skipping."
+    continue
+  fi
+  log "Creating $aot (training op: $op)"
+  rm -f "$conf"
+  java -XX:AOTMode=record -XX:AOTConfiguration="$conf" \
+    -XX:+AOTClassLinking \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+  test -f "$conf"
+  java -XX:AOTMode=create -XX:AOTConfiguration="$conf" \
+    -XX:AOTCache="$aot" \
+    -XX:+AOTClassLinking \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CP"
+  test -f "$aot"
+  log "$aot created."
+done

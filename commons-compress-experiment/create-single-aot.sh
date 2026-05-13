@@ -1,4 +1,5 @@
 #!/bin/bash
+# Creates one single-{op}.aot per workload for the cross-workload experiment.
 set -euo pipefail
 
 log() { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
@@ -9,8 +10,6 @@ cd "$SCRIPT_DIR"
 log "Java version:"
 java -version
 
-SINGLE_AOT="single.aot"
-SINGLE_CONF="single.aotconf"
 BENCH_JAR="benchmark/target/original-benchmark-1.0-SNAPSHOT.jar"
 DEPS_DIR="single-aot-deps"
 MAIN="dev.compressexp.Main"
@@ -18,8 +17,6 @@ WORK_DIR="workload-tmp"
 
 MAVEN_CENTRAL="https://repo1.maven.org/maven2"
 
-# Order must match SINGLE_CP in workload-timed.sh exactly — the AOT cache
-# fingerprint includes the full classpath string.
 declare -a DEP_JARS=(
   "commons-compress-1.28.0.jar"
   "commons-lang3-3.20.0.jar"
@@ -33,10 +30,7 @@ declare -a DEP_URLS=(
   "$MAVEN_CENTRAL/commons-io/commons-io/2.20.0/commons-io-2.20.0.jar"
 )
 
-if [ -f "$SINGLE_AOT" ]; then
-  log "single.aot already exists, skipping creation."
-  exit 0
-fi
+OPS=("gzip-roundtrip" "zip-roundtrip" "tar-roundtrip" "list-archives")
 
 [[ -f "$BENCH_JAR" ]] || { echo "Missing $BENCH_JAR (build benchmark first)" >&2; exit 1; }
 
@@ -58,13 +52,7 @@ $DEPS_DIR/commons-lang3-3.20.0.jar:\
 $DEPS_DIR/commons-codec-1.21.0.jar:\
 $DEPS_DIR/commons-io-2.20.0.jar"
 
-log "Creating single.aot (two-step: record + create)"
-rm -f "$SINGLE_AOT"
-rm -f "$SINGLE_CONF"
-
 mkdir -p "$WORK_DIR"
-
-# prepare (not recorded) creates the archives that list-archives needs to read.
 java \
   --add-modules java.instrument \
   --add-opens java.base/java.io=ALL-UNNAMED \
@@ -75,33 +63,37 @@ java \
   --add-opens java.base/java.util=ALL-UNNAMED \
   -cp "$CP" "$MAIN" prepare "$WORK_DIR"
 
-# Record only gzip-roundtrip: loads only GzipCompressor{In,Out}putStream — no
-# ZipArchive* or TarArchive* classes. zip-roundtrip, tar-roundtrip, and
-# list-archives will all miss the cache, maximising the gap vs tree.aot (which
-# was trained on the full test suite covering all four ops).
-java -XX:AOTMode=record -XX:AOTConfiguration="$SINGLE_CONF" \
-  -XX:+AOTClassLinking \
-  --add-modules java.instrument \
-  --add-opens java.base/java.io=ALL-UNNAMED \
-  --add-opens java.base/java.lang=ALL-UNNAMED \
-  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-  --add-opens java.base/java.time=ALL-UNNAMED \
-  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-  --add-opens java.base/java.util=ALL-UNNAMED \
-  -cp "$CP" "$MAIN" gzip-roundtrip "$WORK_DIR"
-test -f "$SINGLE_CONF"
-
-java -XX:AOTMode=create -XX:AOTConfiguration="$SINGLE_CONF" \
-  -XX:AOTCache="$SINGLE_AOT" \
-  -XX:+AOTClassLinking \
-  --add-modules java.instrument \
-  --add-opens java.base/java.io=ALL-UNNAMED \
-  --add-opens java.base/java.lang=ALL-UNNAMED \
-  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
-  --add-opens java.base/java.time=ALL-UNNAMED \
-  --add-opens java.base/java.time.chrono=ALL-UNNAMED \
-  --add-opens java.base/java.util=ALL-UNNAMED \
-  -cp "$CP"
-
-test -f "$SINGLE_AOT"
-log "single.aot created."
+for op in "${OPS[@]}"; do
+  aot="single-${op}.aot"
+  conf="single-${op}.aotconf"
+  if [ -f "$aot" ]; then
+    log "$aot already exists, skipping."
+    continue
+  fi
+  log "Creating $aot (training op: $op)"
+  rm -f "$conf"
+  java -XX:AOTMode=record -XX:AOTConfiguration="$conf" \
+    -XX:+AOTClassLinking \
+    --add-modules java.instrument \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CP" "$MAIN" "$op" "$WORK_DIR"
+  test -f "$conf"
+  java -XX:AOTMode=create -XX:AOTConfiguration="$conf" \
+    -XX:AOTCache="$aot" \
+    -XX:+AOTClassLinking \
+    --add-modules java.instrument \
+    --add-opens java.base/java.io=ALL-UNNAMED \
+    --add-opens java.base/java.lang=ALL-UNNAMED \
+    --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens java.base/java.time=ALL-UNNAMED \
+    --add-opens java.base/java.time.chrono=ALL-UNNAMED \
+    --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp "$CP"
+  test -f "$aot"
+  log "$aot created."
+done
