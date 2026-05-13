@@ -168,13 +168,12 @@ done
 _print_latex_rows() {
   local project="$1"
   local n="${#OPS[@]}"
-  local i=0
   local tex_file="$WORK_DIR/latex-rows.tex"
   local sum_su_mono=0 sum_su_merged=0
   echo "\\multirow{$(( n + 1 ))}{*}{${project}}" > "$tex_file"
   local train_op
   for train_op in "${OPS[@]}"; do
-    local m_no m_mono m_merged su_mono su_merged fmt_su_mono fmt_su_merged w
+    local m_no m_mono m_merged su_mono su_merged fmt_su_mono fmt_su_merged
     m_no=$(_cross_mean "$train_op" "no")
     m_mono=$(_cross_mean "$train_op" "mono")
     m_merged=$(_cross_mean "$train_op" "merged")
@@ -184,9 +183,7 @@ _print_latex_rows() {
     sum_su_merged=$(awk "BEGIN{printf \"%.4f\", $sum_su_merged + $su_merged}")
     fmt_su_mono=$(awk   -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
     fmt_su_merged=$(awk -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(b+0>a+0) print "\\textbf{"b"x}" ; else print b"x"}')
-    if [ "$i" -eq 0 ]; then w="\\textbf{${train_op}}"; else w="${train_op}"; fi
-    echo "  & ${w} & \$${m_no}\$ & \$${m_mono}\$ & ${fmt_su_mono} & \$${m_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
-    i=$(( i + 1 ))
+    echo "  & ${train_op} & \$${m_no}\$ & \$${m_mono}\$ & ${fmt_su_mono} & \$${m_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
   done
   local avg_mono avg_merged fmt_avg_mono fmt_avg_merged
   avg_mono=$(awk   -v s="$sum_su_mono"   -v n="$n" 'BEGIN{printf "%.2f", s/n}')
