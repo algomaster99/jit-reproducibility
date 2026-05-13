@@ -116,7 +116,9 @@ jobs:
           set -euo pipefail
           chmod +x create-single-aot.sh
           ./create-single-aot.sh
-          test -f single.aot
+          for op in html-render text-render xml-render fragment-render; do
+            test -f "single-${op}.aot"
+          done
 
       # ── tree.aot (custom JDK — has the AOT merge capability) ──────────────
 
@@ -164,13 +166,13 @@ jobs:
           echo "$wl_out"
           wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
 
-          single_size=$(du -h single.aot | awk '{print $1}')
+          single_size=$(du -ch single-*.aot | tail -1 | awk '{print $1}')
           tree_size=$(du -h tree.aot | awk '{print $1}')
 
           {
             echo "## Timed workload results (no-AOT vs single vs tree)"
             echo
-            echo "- single.aot: ${single_size}"
+            echo "- single-*.aot total: ${single_size}"
             echo "- tree.aot: ${tree_size}"
             echo
             echo '```'
@@ -204,7 +206,9 @@ jobs:
             echo "| ognl | \`thymeleaf-deps/ognl/cache.aot\` | $(du -h thymeleaf-deps/ognl/cache.aot | awk '{print $1}') |"
             echo "| slf4j-api | \`thymeleaf-deps/slf4j/slf4j-api/cache.aot\` | $(du -h thymeleaf-deps/slf4j/slf4j-api/cache.aot | awk '{print $1}') |"
             echo "| unbescape | \`thymeleaf-deps/unbescape-workload/cache.aot\` | $(du -h thymeleaf-deps/unbescape-workload/cache.aot | awk '{print $1}') |"
-            echo "| single | \`single.aot\` | $(du -h single.aot | awk '{print $1}') |"
+            for op in html-render text-render xml-render fragment-render; do
+              echo "| single-${op} | \`single-${op}.aot\` | $(du -h "single-${op}.aot" | awk '{print $1}') |"
+            done
             echo "| tree | \`tree.aot\` | $(du -h tree.aot | awk '{print $1}') |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -217,7 +221,7 @@ jobs:
           path: |
             thymeleaf-experiment/workload-tmp/
             thymeleaf-experiment/aotlink-tree-create.log
-            thymeleaf-experiment/single.aot
+            thymeleaf-experiment/single-*.aot
             thymeleaf-experiment/tree.aot
             thymeleaf-experiment/thymeleaf/tests/thymeleaf-tests-core/cache.aot
             thymeleaf-experiment/thymeleaf-deps/attoparser/cache.aot
