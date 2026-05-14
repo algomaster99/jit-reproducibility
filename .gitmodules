@@ -70,3 +70,23 @@
 	path = thymeleaf-experiment/thymeleaf
 	url = git@github.com:algomaster99/thymeleaf.git
 	branch = aotcache-setup
+[submodule "commons-validator-experiment/commons-validator"]
+	path = commons-validator-experiment/commons-validator
+	url = git@github.com:algomaster99/commons-validator.git
+	branch = aotcache-setup-commons-validator
+[submodule "commons-validator-experiment/commons-validator-deps/commons-beanutils"]
+	path = commons-validator-experiment/commons-validator-deps/commons-beanutils
+	url = git@github.com:algomaster99/commons-beanutils.git
+	branch = aotcache-setup-commons-validator
+[submodule "commons-validator-experiment/commons-validator-deps/commons-digester"]
+	path = commons-validator-experiment/commons-validator-deps/commons-digester
+	url = git@github.com:algomaster99/commons-digester.git
+	branch = aotcache-setup-commons-validator
+[submodule "commons-validator-experiment/commons-validator-deps/commons-logging"]
+	path = commons-validator-experiment/commons-validator-deps/commons-logging
+	url = git@github.com:algomaster99/commons-logging.git
+	branch = aotcache-setup-commons-validator
+[submodule "commons-validator-experiment/commons-validator-deps/commons-collections"]
+	path = commons-validator-experiment/commons-validator-deps/commons-collections
+	url = git@github.com:algomaster99/commons-collections.git
+	branch = aotcache-setup-commons-validator

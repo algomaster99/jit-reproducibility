@@ -63,7 +63,48 @@ Constraints: Maven only, JDK > 5, no `module-info.java` (source or MR-JAR) anywh
 
 ---
 
+---
+
+## Candidates from JACT thesis dataset (Sävås 2025, KTH)
+
+30 Maven open-source projects evaluated. Constraint: **< 6 total runtime deps** (direct + indirect combined) since each dep must be built manually. poi-tl already rejected (Apache POI). Projects below are filtered on that constraint and ranked by workload diversity.
+
+### Passed constraint (< 6 total runtime deps)
+
+| Project | Direct | Indirect | Total | Workload diversity |
+|---------|--------|----------|-------|--------------------|
+| tika-core | 2 | 0 | 2 | **Excellent** — parsing PDF vs DOCX vs HTML vs images loads completely independent parser class hierarchies; single-workload cache is essentially useless on other formats |
+| pf4j | 3 | 0 | 3 | Low — plugin lifecycle operations share most classes |
+| commons-validator | 4 | 0 | 4 | **Good** — email, URL, IP address, credit card, date, ISBN validators each use distinct regex/parse class subtrees |
+| java-faker | 3 | 1 | 4 | Medium — data categories (name, address, number, lorem) share most infrastructure |
+| pdfbox | 4 | 1 | 5 | **Good** — already in experiment |
+| undertow | 4 | 2 | 6 | **Good** — different handler types (static files, servlet, WebSocket, HTTP/2) load distinct handler class trees; but uses `xnio` which may have module issues |
+
+### Top picks (not yet in experiment or rejected list)
+
+**1. commons-validator** — best combination of feasibility and workload diversity within the constraint. Validators for email, URL, IP, credit card, ISBN, and date each invoke different parsing/regex subtrees. All deps are pre-JPMS Apache Commons libraries — high confidence no `module-info`.
+
+**2. tika-core** — exceptional workload divergence (each file type loads a separate parser), but very thin dep tree (2 deps). Worth testing if the AOT benefit from 2 deps is still measurable.
+
+**3. undertow** — if workload diversity is the priority, HTTP static-file vs servlet vs WebSocket handlers differ substantially. But needs module-info check on `xnio-api` and `jboss-logging`.
+
+### Filtered out (too many deps)
+| Project | Total deps | Reason |
+|---------|-----------|--------|
+| graphhopper | 20 | Too many deps to build manually |
+| Recaf | 56 | Too many deps |
+| lettuce | 44 | Too many deps; also needs Redis server at test time |
+| Chronicle-Map | 34 | Too many deps |
+| OpenPDF | 36 | Too many deps |
+| mybatis-3 | 8 | Too many; also needs DB at test time |
+| jimfs | 9 | Too many |
+
+---
+
 ## Decision Queue
 
-- [ ] Confirm Velocity 2.3 as next experiment or find an additional candidate
-- [ ] Create a dedicated experiment plan for chosen project
+- [ ] Confirm commons-validator as next experiment (best workload diversity within dep constraint)
+- [ ] Verify: no `module-info` in commons-validator dep tree (commons-lang3, commons-beanutils, commons-collections4, commons-digester)
+- [ ] Investigate tika-core as secondary candidate if commons-validator has low AOT benefit
+- [ ] Check `xnio-api` for `module-info` if undertow is considered
+- [ ] Drop Velocity 2.3 if commons-validator clears verification (similar dep domain)
