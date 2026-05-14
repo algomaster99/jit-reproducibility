@@ -36,7 +36,7 @@ echo
 # ─── run helpers ─────────────────────────────────────────────────────────────
 
 _run_no()     { "$JAVA_NO_BIN"     -jar "$FAT_JAR" "$1"; }
-_run_merged() { "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" -jar "$FAT_JAR" "$1"; }
+_run_merged() { "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" -XX:+AOTClassLinking -jar "$FAT_JAR" "$1"; }
 
 # train_op determines which single-{op}.aot to load; test_op is the workload run.
 _run_mono_cross() {
@@ -199,7 +199,7 @@ _classload_row() {
     no)         "$JAVA_NO_BIN"         -Xlog:class+load:file="$logfile" -jar "$FAT_JAR" "$op" >/dev/null 2>&1 ;;
     monolithic) "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${op}.aot" -XX:+AOTClassLinking \
                   -Xlog:class+load:file="$logfile" -jar "$FAT_JAR" "$op" >/dev/null 2>&1 ;;
-    merged)     "$JAVA_MERGED_BIN"     -XX:AOTCache="$MERGED_AOT" \
+    merged)     "$JAVA_MERGED_BIN"     -XX:AOTCache="$MERGED_AOT" -XX:+AOTClassLinking \
                   -Xlog:class+load:file="$logfile" -jar "$FAT_JAR" "$op" >/dev/null 2>&1 ;;
   esac
   printf "  %-16s | %-10s | %8s | %8s\n" "$op" "$mode" \

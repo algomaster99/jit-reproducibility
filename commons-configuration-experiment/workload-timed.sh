@@ -113,6 +113,7 @@ run_mono_cross() {
 run_merged() {
   local op="$1"
   "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
+    -XX:+AOTClassLinking \
     --add-opens java.base/java.io=ALL-UNNAMED \
     --add-opens java.base/java.lang=ALL-UNNAMED \
     --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
@@ -262,6 +263,7 @@ print_class_load_row() {
       ;;
     merged)
       "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" \
+        -XX:+AOTClassLinking \
         -Xlog:class+load:file="$classload_log" \
         --add-opens java.base/java.io=ALL-UNNAMED \
         --add-opens java.base/java.lang=ALL-UNNAMED \

@@ -67,7 +67,7 @@ _stddev() {
 # ─── run helpers ─────────────────────────────────────────────────────────────
 
 _run_no()     { "$JAVA_NO_BIN"     "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
-_run_merged() { "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
+_run_merged() { "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" -XX:+AOTClassLinking "${BASE_ARGS[@]}" "$MAIN" "$1" "$WORK_DIR"; }
 
 # train_op determines which single-{op}.aot to load; test_op is the workload run.
 _run_mono_cross() {
@@ -205,7 +205,7 @@ _classload_row() {
     no)         "$JAVA_NO_BIN"         -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
     monolithic) "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${op}.aot" -XX:+AOTClassLinking \
                   -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
-    merged)     "$JAVA_MERGED_BIN"     -XX:AOTCache="$MERGED_AOT" \
+    merged)     "$JAVA_MERGED_BIN"     -XX:AOTCache="$MERGED_AOT" -XX:+AOTClassLinking \
                   -Xlog:class+load:file="$logfile" "${BASE_ARGS[@]}" "$MAIN" "$op" "$WORK_DIR" >/dev/null 2>&1 ;;
   esac
   printf "  %-14s | %-6s | %8s | %8s\n" "$op" "$mode" \
