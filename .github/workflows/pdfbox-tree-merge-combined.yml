@@ -181,6 +181,17 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Emit LaTeX table rows
+        working-directory: pdfbox-experiment
+        run: |
+          {
+            echo "## LaTeX table rows (single=monolithic, tree=merged)"
+            echo
+            echo '```latex'
+            cat workload-tmp/latex-rows.tex
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write artifact summary
         working-directory: pdfbox-experiment
         run: |
