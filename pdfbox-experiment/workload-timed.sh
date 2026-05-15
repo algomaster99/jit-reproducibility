@@ -2,375 +2,278 @@
 set -euo pipefail
 
 log()  { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
-info() { echo -e "\033[1;34m  >> $*\033[0m"; }
 sep()  { echo -e "\033[0;90m  $(printf '─%.0s' {1..60})\033[0m"; }
+fail() { echo -e "\033[1;31mERROR: $*\033[0m" >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 JAR="pdfbox/app/target/pdfbox-app-3.0.7.jar"
 MAIN="org.apache.pdfbox.tools.PDFBox"
 PDF="pdfbox/test.pdf"
 BASE="test"
 TMP="workload-tmp"
-AOT="tree.aot"
-SINGLE_AOT="single.aot"
+MERGED_AOT="tree.aot"
 
-CP="pdfbox/app/target/pdfbox-app-3.0.7.jar:pdfbox-deps/pdfbox-jbig2/target/classes/:pdfbox-deps/apache-commons-io/target/classes/"
+CP="$JAR:pdfbox-deps/pdfbox-jbig2/target/classes/:pdfbox-deps/apache-commons-io/target/classes/"
 
-# If operations sometimes "hang", this prevents infinite waits and points at the op.
-# Set OP_TIMEOUT_SEC higher if your workload is slow.
 OP_TIMEOUT_SEC="${OP_TIMEOUT_SEC:-900}"
 JAVA_NO_BIN="${JAVA_NO_BIN:-java}"
-JAVA_SINGLE_BIN="${JAVA_SINGLE_BIN:-java}"
-JAVA_TREE_BIN="${JAVA_TREE_BIN:-java}"
+JAVA_MONOLITHIC_BIN="${JAVA_MONOLITHIC_BIN:-java}"
+JAVA_MERGED_BIN="${JAVA_MERGED_BIN:-java}"
+RUNS="${RUNS:-30}"
 
-if [ ! -f "$AOT" ]; then
-  echo "tree.aot not found — run orchestrate-combine-*.sh first" >&2
-  exit 1
-fi
+OPS=(export:text export:images render fromtext split merge decode overlay)
 
-if [ ! -f "$SINGLE_AOT" ]; then
-  echo "single.aot not found" >&2
-  exit 1
-fi
-
-log "Java version(s):"
-echo "no-AOT java:    $JAVA_NO_BIN"
-"$JAVA_NO_BIN" -version
-echo
-echo "single-AOT java: $JAVA_SINGLE_BIN"
-"$JAVA_SINGLE_BIN" -version
-echo
-echo "tree-AOT java:   $JAVA_TREE_BIN"
-"$JAVA_TREE_BIN" -version
-echo
+[[ -f "$JAR" ]] || fail "$JAR not found — build pdfbox first"
+[[ -f "$PDF" ]] || fail "$PDF not found"
+for _op in "${OPS[@]}"; do
+  [[ -f "single-${_op}.aot" ]] || fail "single-${_op}.aot not found — run ./create-single-aot.sh first"
+done
+[[ -f "$MERGED_AOT" ]] || fail "tree.aot not found — run orchestrate-combine-4.sh first"
 
 mkdir -p "$TMP"
 
-# ---------------------------------------------------------------------------
-# Timing helpers
-# ---------------------------------------------------------------------------
+log "Java binaries:"
+printf "  no-AOT:         %s\n" "$JAVA_NO_BIN";         "$JAVA_NO_BIN"         -version 2>&1 | head -1
+printf "  monolithic-AOT: %s\n" "$JAVA_MONOLITHIC_BIN"; "$JAVA_MONOLITHIC_BIN" -version 2>&1 | head -1
+printf "  merged-AOT:     %s\n" "$JAVA_MERGED_BIN";     "$JAVA_MERGED_BIN"     -version 2>&1 | head -1
+echo
+
+# ─── op args ──────────────────────────────────────────────────────────────────
+
+# Builds the pdfbox CLI args for a given op into the named array variable.
+op_args() {
+  local op="$1"
+  local -n _arr="$2"
+  case "$op" in
+    export:text)   _arr=(export:text   --input "$PDF" --output "$TMP/$BASE-text.txt") ;;
+    export:images) _arr=(export:images --input "$PDF") ;;
+    render)        _arr=(render        --input "$PDF") ;;
+    fromtext)      _arr=(fromtext      --input "$TMP/$BASE-text.txt"
+                           --output "$TMP/$BASE-from-text.pdf"
+                           -standardFont Times-Roman) ;;
+    split)         _arr=(split         --input "$PDF" -split 3 -outputPrefix "$TMP/split-$BASE") ;;
+    merge)         _arr=(merge         --input "$TMP/split-$BASE-1.pdf"
+                           --output "$TMP/merged-$BASE.pdf") ;;
+    decode)        _arr=(decode "$PDF" "$TMP/$BASE-decoded.pdf") ;;
+    overlay)       _arr=(overlay       -default "$PDF" --input "$PDF"
+                           --output "$TMP/$BASE-overlay.pdf") ;;
+    *) fail "Unknown op: $op" ;;
+  esac
+}
+
+# ─── prepare prerequisite files ───────────────────────────────────────────────
+
+log "Preparing prerequisite files for workload…"
+"$JAVA_NO_BIN" -cp "$CP" "$MAIN" export:text --input "$PDF" --output "$TMP/$BASE-text.txt" >/dev/null 2>&1
+"$JAVA_NO_BIN" -cp "$CP" "$MAIN" split --input "$PDF" -split 3 -outputPrefix "$TMP/split-$BASE" >/dev/null 2>&1
+
+# ─── run helpers ──────────────────────────────────────────────────────────────
+
+_run_no() {
+  local op="$1"
+  local -a args; op_args "$op" args
+  "$JAVA_NO_BIN" -cp "$CP" "$MAIN" "${args[@]}"
+}
+
+_run_merged() {
+  local op="$1"
+  local -a args; op_args "$op" args
+  "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" -XX:+AOTClassLinking -cp "$CP" "$MAIN" "${args[@]}"
+}
+
+# train_op determines which single-{op}.aot to load; test_op is the workload run.
+_run_mono_cross() {
+  local train_op="$1" test_op="$2"
+  local -a args; op_args "$test_op" args
+  "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${train_op}.aot" -XX:+AOTClassLinking \
+    -cp "$CP" "$MAIN" "${args[@]}"
+}
+
+# ─── timing helpers ──────────────────────────────────────────────────────────
+
 ms() { date +%s%N | awk '{printf "%.1f", $1/1000000}'; }
 
-measure_ms() {
-  # Prints integer milliseconds, or exits on failure/timeout.
-  # $1=op $2=mode $3+=command
-  local op="$1"; local mode="$2"; shift 2
-  local start; start=$(ms)
-  local err_file="$TMP/${RUN_IDX:-0}-${op//:/}-${mode}.stderr.log"
+declare -A _min _max _samples
 
-  # Use `timeout` when available to prevent indefinite hangs.
-  if command -v timeout >/dev/null 2>&1; then
-    timeout "${OP_TIMEOUT_SEC}s" "$@" >/dev/null 2>"$err_file"
-    local rc=$?
-  else
-    "$@" >/dev/null 2>"$err_file"
-    local rc=$?
-  fi
-
-  if [ "$rc" -ne 0 ]; then
-    echo "ERROR: timed out/failed (op=$op mode=$mode rc=$rc OP_TIMEOUT_SEC=$OP_TIMEOUT_SEC) see $err_file" >&2
-    return "$rc"
-  fi
-
-  local end; end=$(ms)
-  awk "BEGIN {printf \"%.1f\", $end - $start}"
+_update() {
+  local key="$1" v="$2"
+  _samples[$key]="${_samples[$key]:-} $v"
+  if [[ -z "${_min[$key]:-}" ]] || awk "BEGIN{exit !($v < ${_min[$key]})}"; then _min[$key]=$v; fi
+  if [[ -z "${_max[$key]:-}" ]] || awk "BEGIN{exit !($v > ${_max[$key]})}"; then _max[$key]=$v; fi
 }
 
-declare -A minv maxv cnt samples
-
-update_stats() {
-  local key="$1"; local sample_ms="$2"
-  cnt[$key]=$(( ${cnt[$key]:-0} + 1 ))
-  samples[$key]="${samples[$key]:-} ${sample_ms}"
-
-  if [ -z "${minv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} < ${minv[$key]})}"; then
-    minv[$key]="$sample_ms"
-  fi
-  if [ -z "${maxv[$key]:-}" ] || awk "BEGIN {exit !(${sample_ms} > ${maxv[$key]})}"; then
-    maxv[$key]="$sample_ms"
-  fi
+_mean() {
+  printf "%s\n" ${_samples[$1]:-} | awk '
+    {sum+=$1; n++}
+    END{ if(!n){print "n/a"} else{printf "%.1f",sum/n} }'
 }
 
-median_for_key() {
-  local key="$1"
-  local n="${cnt[$key]:-0}"
-  local values median
-
-  if [ "$n" -eq 0 ]; then
-    echo "n/a"
-    return
-  fi
-
-  values="${samples[$key]# }"
-  median="$(
-    printf "%s\n" $values | sort -n | awk '
-      { a[++n] = $1 }
-      END {
-        if (n % 2 == 1) {
-          printf "%.1f", a[(n + 1) / 2]
-        } else {
-          printf "%.1f", (a[n / 2] + a[(n / 2) + 1]) / 2
-        }
-      }
-    '
-  )"
-  echo "$median"
+_stddev() {
+  printf "%s\n" ${_samples[$1]:-} | awk '
+    {sum+=$1; sumsq+=$1*$1; n++}
+    END{ if(n<2){print "n/a"} else{printf "%.1f",sqrt((sumsq-sum*sum/n)/(n-1))} }'
 }
 
-print_summary() {
-  local runs="$1"
+_measure_no() {
+  local op="$1" run="$2"
+  local errfile="$TMP/err-${op//:/-}-no-${run}.log"
+  local t0 t1 rc=0
+  t0=$(ms); _run_no "$op" >/dev/null 2>"$errfile" || rc=$?; t1=$(ms)
+  if (( rc != 0 )); then echo "  WARN: op=$op mode=no run=$run exited $rc — see $errfile" >&2; return; fi
+  _update "${op}|no" "$(awk "BEGIN{printf \"%.1f\",$t1-$t0}")"
+}
 
-  # Operation labels (must match the workload below).
-  local -a ops=("export:text" "export:images" "render" "fromtext" "split" "merge" "decode" "overlay")
+_measure_merged() {
+  local op="$1" run="$2"
+  local errfile="$TMP/err-${op//:/-}-merged-${run}.log"
+  local t0 t1 rc=0
+  t0=$(ms); _run_merged "$op" >/dev/null 2>"$errfile" || rc=$?; t1=$(ms)
+  if (( rc != 0 )); then echo "  WARN: op=$op mode=merged run=$run exited $rc — see $errfile" >&2; return; fi
+  _update "${op}|merged" "$(awk "BEGIN{printf \"%.1f\",$t1-$t0}")"
+}
 
-  echo
-  log "Aggregated timing over ${runs} runs (ms)"
-  sep
+_measure_mono_cross() {
+  local train_op="$1" test_op="$2" run="$3"
+  local label="${train_op//:/-}-${test_op//:/-}"
+  local errfile="$TMP/err-${label}-mono-${run}.log"
+  local t0 t1 rc=0
+  t0=$(ms); _run_mono_cross "$train_op" "$test_op" >/dev/null 2>"$errfile" || rc=$?; t1=$(ms)
+  if (( rc != 0 )); then
+    echo "  WARN: train=$train_op test=$test_op run=$run exited $rc — see $errfile" >&2; return
+  fi
+  _update "${train_op}|${test_op}|mono" "$(awk "BEGIN{printf \"%.1f\",$t1-$t0}")"
+}
 
-  printf "  %-16s | %10s %6s %6s | %10s %6s %6s | %10s %6s %6s\n" \
-    "Operation" "no-med" "no-min" "no-max" "tree-med" "tree-min" "tree-max" "single-med" "single-min" "single-max"
-
-  local op key n
-  local med min max med_tree min_tree max_tree med_single min_single max_single
-
-  for op in "${ops[@]}"; do
-    key="${op}|no"
-    n="${cnt[$key]:-0}"
-    if [ "$n" -eq 0 ]; then
-      printf "  %-16s | %-10s %-6s %-6s | %-10s %-6s %-6s | %-10s %-6s %-6s\n" \
-        "$op" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a" "n/a"
-      continue
-    fi
-
-    med="$(median_for_key "$key")"
-    min="${minv[$key]}"
-    max="${maxv[$key]}"
-
-    key="${op}|tree"
-    med_tree="$(median_for_key "$key")"
-    min_tree="${minv[$key]}"
-    max_tree="${maxv[$key]}"
-
-    key="${op}|single"
-    med_single="$(median_for_key "$key")"
-    min_single="${minv[$key]}"
-    max_single="${maxv[$key]}"
-
-    printf "  %-16s | %10s %6s %6s | %10s %6s %6s | %10s %6s %6s\n" \
-      "$op" "${med}" "${min}" "${max}" "${med_tree}" "${min_tree}" "${max_tree}" "${med_single}" "${min_single}" "${max_single}"
+# Mean over all test ops ≠ train_op.
+# mode: "no" → ${test}|no   "mono" → ${train}|${test}|mono   "merged" → ${test}|merged
+_cross_mean() {
+  local train_op="$1" mode="$2"
+  local sum=0 n=0 test_op key m
+  for test_op in "${OPS[@]}"; do
+    [[ "$test_op" == "$train_op" ]] && continue
+    case "$mode" in
+      no)     key="${test_op}|no" ;;
+      mono)   key="${train_op}|${test_op}|mono" ;;
+      merged) key="${test_op}|merged" ;;
+    esac
+    m=$(_mean "$key")
+    sum=$(awk "BEGIN{printf \"%.4f\", $sum + $m}")
+    n=$(( n + 1 ))
   done
+  awk -v s="$sum" -v n="$n" 'BEGIN{printf "%.1f", s/n}'
 }
 
-print_class_load_row() {
-  local mode="$1"; local label="$2"; shift 2
-  local classload_log="$TMP/classload-${label//:/-}-${mode}.log"
-  local file_count shared_count
-  local -a cmd
+# ─── main measurement loop ────────────────────────────────────────────────────
 
-  case "$mode" in
-    no)
-      cmd=("$JAVA_NO_BIN"
-        -Xlog:class+load:file="$classload_log"
-        -cp "$CP" "$MAIN" "$@")
-      ;;
-    tree)
-      cmd=("$JAVA_TREE_BIN" -XX:AOTCache="$AOT"
-        -Xlog:class+load:file="$classload_log"
-        -cp "$CP" "$MAIN" "$@")
-      ;;
-    single)
-      cmd=("$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT"
-        -Xlog:class+load:file="$classload_log"
-        -cp "$CP" "$MAIN" "$@")
-      ;;
-    *)
-      echo "Unknown class-load mode: $mode" >&2
-      return 1
-      ;;
-  esac
-
-  "${cmd[@]}"
-
-  file_count="$(awk '/source: file:/{count++} END{print count+0}' "$classload_log")"
-  shared_count="$(awk '/source: shared object[s]? file/{count++} END{print count+0}' "$classload_log")"
-
-  printf "  %-16s | %-6s | %8s | %8s\n" "$label" "$mode" "$file_count" "$shared_count"
-}
-
-print_class_load_summary() {
-  log "Class-load source summary per workload (captured once per mode with -Xlog:class+load)"
-  sep
-  printf "  %-16s | %-6s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
-
-  print_class_load_row "no" "export:text" \
-    export:text --input "$PDF" --output "$TMP/$BASE-text.txt"
-  print_class_load_row "tree" "export:text" \
-    export:text --input "$PDF" --output "$TMP/$BASE-text.txt"
-  print_class_load_row "single" "export:text" \
-    export:text --input "$PDF" --output "$TMP/$BASE-text.txt"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "export:images" \
-    export:images --input "$PDF"
-  print_class_load_row "tree" "export:images" \
-    export:images --input "$PDF"
-  print_class_load_row "single" "export:images" \
-    export:images --input "$PDF"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "render" \
-    render --input "$PDF"
-  print_class_load_row "tree" "render" \
-    render --input "$PDF"
-  print_class_load_row "single" "render" \
-    render --input "$PDF"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "fromtext" \
-    fromtext --input "$TMP/$BASE-text.txt" \
-             --output "$TMP/$BASE-from-text.pdf" \
-             -standardFont Times-Roman
-  print_class_load_row "tree" "fromtext" \
-    fromtext --input "$TMP/$BASE-text.txt" \
-             --output "$TMP/$BASE-from-text.pdf" \
-             -standardFont Times-Roman
-  print_class_load_row "single" "fromtext" \
-    fromtext --input "$TMP/$BASE-text.txt" \
-             --output "$TMP/$BASE-from-text.pdf" \
-             -standardFont Times-Roman
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "split" \
-    split --input "$PDF" -split 3 -outputPrefix "$TMP/split-$BASE"
-  print_class_load_row "tree" "split" \
-    split --input "$PDF" -split 3 -outputPrefix "$TMP/split-$BASE"
-  print_class_load_row "single" "split" \
-    split --input "$PDF" -split 3 -outputPrefix "$TMP/split-$BASE"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "merge" \
-    merge --input "$TMP/split-$BASE-1.pdf" \
-          --output "$TMP/merged-$BASE.pdf"
-  print_class_load_row "tree" "merge" \
-    merge --input "$TMP/split-$BASE-1.pdf" \
-          --output "$TMP/merged-$BASE.pdf"
-  print_class_load_row "single" "merge" \
-    merge --input "$TMP/split-$BASE-1.pdf" \
-          --output "$TMP/merged-$BASE.pdf"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "decode" \
-    decode "$PDF" "$TMP/$BASE-decoded.pdf"
-  print_class_load_row "tree" "decode" \
-    decode "$PDF" "$TMP/$BASE-decoded.pdf"
-  print_class_load_row "single" "decode" \
-    decode "$PDF" "$TMP/$BASE-decoded.pdf"
-
-  echo "--------------------------------"
-
-  print_class_load_row "no" "overlay" \
-    overlay -default "$PDF" --input "$PDF" --output "$TMP/$BASE-overlay.pdf"
-  print_class_load_row "tree" "overlay" \
-    overlay -default "$PDF" --input "$PDF" --output "$TMP/$BASE-overlay.pdf"
-  print_class_load_row "single" "overlay" \
-    overlay -default "$PDF" --input "$PDF" --output "$TMP/$BASE-overlay.pdf"
-
-  info "raw class-load logs: $TMP/classload-*-{no,tree,single}.log"
-  echo
-}
-
-run_op() {
-  # $1 = label, rest = java args (without -XX:AOTCache)
-  local label="$1"; shift
-  local -a cmd_no cmd_tree cmd_single
-  local ms_no ms_tree ms_single
-
-  cmd_no=("$JAVA_NO_BIN" -cp "$CP" "$MAIN" "$@")
-  cmd_tree=("$JAVA_TREE_BIN" -XX:AOTCache="$AOT" -cp "$CP" "$MAIN" "$@")
-  cmd_single=("$JAVA_SINGLE_BIN" -XX:AOTCache="$SINGLE_AOT" -cp "$CP" "$MAIN" "$@")
-
-  ms_no="$(measure_ms "$label" "no" "${cmd_no[@]}")"
-  update_stats "${label}|no" "$ms_no"
-  if [ "${PRINT_PER_RUN:-0}" = "1" ]; then
-    printf "  \033[1;33m%-30s\033[0m \033[0;90mno AOT  \033[0m \033[1;37m%.1fms\033[0m\n" "$label" "$ms_no"
-  fi
-
-  ms_tree="$(measure_ms "$label" "tree" "${cmd_tree[@]}")"
-  update_stats "${label}|tree" "$ms_tree"
-  if [ "${PRINT_PER_RUN:-0}" = "1" ]; then
-    printf "  \033[1;33m%-30s\033[0m \033[0;90mAOT tree  \033[0m \033[1;37m%.1fms\033[0m\n" "$label" "$ms_tree"
-  fi
-
-  ms_single="$(measure_ms "$label" "single" "${cmd_single[@]}")"
-  update_stats "${label}|single" "$ms_single"
-  if [ "${PRINT_PER_RUN:-0}" = "1" ]; then
-    printf "  \033[1;33m%-30s\033[0m \033[0;90mAOT single\033[0m \033[1;37m%.1fms\033[0m\n" "$label" "$ms_single"
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# Workload
-# ---------------------------------------------------------------------------
-log "PDFBox workload — comparing no-AOT vs single.aot vs tree.aot"
+log "Running PDFBox cross-workload experiment — RUNS=$RUNS"
 sep
 
-RUNS="${RUNS:-10}"
-
-# Set PRINT_PER_RUN=1 if you still want per-op timings printed for each run.
-PRINT_PER_RUN="${PRINT_PER_RUN:-0}"
-
-if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || [ "$RUNS" -lt 1 ]; then
-  echo "RUNS must be an integer >= 1 (got: $RUNS)" >&2
-  exit 1
-fi
-
-print_class_load_summary
-
-workload_once() {
-  run_op "export:text" \
-    export:text --input "$PDF" --output "$TMP/$BASE-text.txt"
-
-  run_op "export:images" \
-    export:images --input "$PDF"
-
-  run_op "render" \
-    render --input "$PDF"
-
-  run_op "fromtext" \
-    fromtext --input "$TMP/$BASE-text.txt" \
-             --output "$TMP/$BASE-from-text.pdf" \
-             -standardFont Times-Roman
-
-  run_op "split" \
-    split --input "$PDF" -split 3 -outputPrefix "$TMP/split-$BASE"
-
-  run_op "merge" \
-    merge --input "$TMP/split-$BASE-1.pdf" \
-          --output "$TMP/merged-$BASE.pdf"
-
-  run_op "decode" \
-    decode "$PDF" "$TMP/$BASE-decoded.pdf"
-
-  run_op "overlay" \
-    overlay -default "$PDF" --input "$PDF" --output "$TMP/$BASE-overlay.pdf"
-}
-
-log "Running workload ${RUNS} times (aggregate)"
-sep
-for i in $(seq 1 "$RUNS"); do
-  if [ "$PRINT_PER_RUN" = "1" ]; then
-    log "Run $i/$RUNS"
-  fi
-  RUN_IDX="$i"
-  workload_once
+for run in $(seq 1 "$RUNS"); do
+  printf "  run %2d/%d\n" "$run" "$RUNS"
+  for op in "${OPS[@]}"; do
+    _measure_no     "$op" "$run"
+    _measure_merged "$op" "$run"
+  done
+  for train_op in "${OPS[@]}"; do
+    for test_op in "${OPS[@]}"; do
+      [[ "$test_op" == "$train_op" ]] && continue
+      _measure_mono_cross "$train_op" "$test_op" "$run"
+    done
+  done
 done
 
-print_summary "$RUNS"
+# ─── results ─────────────────────────────────────────────────────────────────
 
 echo
-log "Done."
+log "Cross-workload timing over $RUNS runs (ms) — train on X, mean of other 7 ops"
+sep
+printf "  %-16s | %10s | %12s %8s | %12s %8s\n" \
+  "Trained on" "no-mean" "mono-mean" "su-mono" "merged-mean" "su-merged"
+sep
+for train_op in "${OPS[@]}"; do
+  m_no=$(_cross_mean "$train_op" "no")
+  m_mono=$(_cross_mean "$train_op" "mono")
+  m_merged=$(_cross_mean "$train_op" "merged")
+  su_mono=$(awk   -v b="$m_no" -v a="$m_mono"   'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2fx",b/a}}')
+  su_merged=$(awk -v b="$m_no" -v a="$m_merged" 'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2fx",b/a}}')
+  printf "  %-16s | %10s | %12s %8s | %12s %8s\n" \
+    "$train_op" "$m_no" "$m_mono" "$su_mono" "$m_merged" "$su_merged"
+done
+
+# ─── LaTeX rows ──────────────────────────────────────────────────────────────
+
+_print_latex_rows() {
+  local project="$1"
+  local n="${#OPS[@]}"
+  local tex_file="$TMP/latex-rows.tex"
+  local sum_su_mono=0 sum_su_merged=0
+  echo "\\multirow{$(( n + 1 ))}{*}{${project}}" > "$tex_file"
+  local train_op
+  for train_op in "${OPS[@]}"; do
+    local m_no m_mono m_merged su_mono su_merged fmt_su_mono fmt_su_merged
+    m_no=$(_cross_mean "$train_op" "no")
+    m_mono=$(_cross_mean "$train_op" "mono")
+    m_merged=$(_cross_mean "$train_op" "merged")
+    su_mono=$(awk   -v b="$m_no" -v a="$m_mono"   'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2f",b/a}}')
+    su_merged=$(awk -v b="$m_no" -v a="$m_merged" 'BEGIN{if(a+0==0){print "n/a"}else{printf "%.2f",b/a}}')
+    sum_su_mono=$(awk  "BEGIN{printf \"%.4f\", $sum_su_mono   + $su_mono}")
+    sum_su_merged=$(awk "BEGIN{printf \"%.4f\", $sum_su_merged + $su_merged}")
+    fmt_su_mono=$(awk   -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
+    fmt_su_merged=$(awk -v a="$su_mono" -v b="$su_merged" 'BEGIN{if(b+0>a+0) print "\\textbf{"b"x}" ; else print b"x"}')
+    echo "  & ${train_op} & \$${m_no}\$ & \$${m_mono}\$ & ${fmt_su_mono} & \$${m_merged}\$ & ${fmt_su_merged} \\\\" >> "$tex_file"
+  done
+  local avg_mono avg_merged fmt_avg_mono fmt_avg_merged
+  avg_mono=$(awk   -v s="$sum_su_mono"   -v n="$n" 'BEGIN{printf "%.2f", s/n}')
+  avg_merged=$(awk -v s="$sum_su_merged" -v n="$n" 'BEGIN{printf "%.2f", s/n}')
+  fmt_avg_mono=$(awk   -v a="$avg_mono" -v b="$avg_merged" 'BEGIN{if(a+0>b+0) print "\\textbf{"a"x}" ; else print a"x"}')
+  fmt_avg_merged=$(awk -v a="$avg_mono" -v b="$avg_merged" 'BEGIN{if(b+0>a+0) print "\\textbf{"b"x}" ; else print b"x"}')
+  echo "  & \\textit{Average} & & & ${fmt_avg_mono} & & ${fmt_avg_merged} \\\\" >> "$tex_file"
+  echo "\\midrule" >> "$tex_file"
+}
+
+_print_latex_rows "pdfbox"
+
+# ─── class-load summary (same-workload monolithic for each op) ────────────────
+
+_classload_row() {
+  local op="$1" mode="$2"
+  local safe_op="${op//:/-}"
+  local logfile="$TMP/cl-${safe_op}-${mode}.log"
+  local -a args; op_args "$op" args
+  case "$mode" in
+    no)
+      "$JAVA_NO_BIN" -Xlog:class+load:file="$logfile" \
+        -cp "$CP" "$MAIN" "${args[@]}" >/dev/null 2>&1
+      ;;
+    monolithic)
+      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${op}.aot" -XX:+AOTClassLinking \
+        -Xlog:class+load:file="$logfile" \
+        -cp "$CP" "$MAIN" "${args[@]}" >/dev/null 2>&1
+      ;;
+    merged)
+      "$JAVA_MERGED_BIN" -XX:AOTCache="$MERGED_AOT" -XX:+AOTClassLinking \
+        -Xlog:class+load:file="$logfile" \
+        -cp "$CP" "$MAIN" "${args[@]}" >/dev/null 2>&1
+      ;;
+  esac
+  printf "  %-16s | %-10s | %8s | %8s\n" "$op" "$mode" \
+    "$(awk '/source: file:/{c++} END{print c+0}' "$logfile")" \
+    "$(awk '/source: shared object/{c++} END{print c+0}' "$logfile")"
+}
+
+echo
+log "Class-load source breakdown (monolithic uses same-workload cache)"
+sep
+printf "  %-16s | %-10s | %8s | %8s\n" "Operation" "Mode" "file:" "shared"
+sep
+for op in "${OPS[@]}"; do
+  _classload_row "$op" no
+  _classload_row "$op" monolithic
+  _classload_row "$op" merged
+  sep
+done
+
+echo
+log "Done. LaTeX rows written to $TMP/latex-rows.tex"

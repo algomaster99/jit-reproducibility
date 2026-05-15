@@ -3,7 +3,8 @@
 # Extends orchestrate-combine-3.sh to include bcprov, bcutil, bcpkix, and commons-logging.
 set -euo pipefail
 
-log() { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
+log()  { echo -e "\033[1;32m[$(date '+%H:%M:%S')] $*\033[0m"; }
+fail() { echo -e "\033[1;31mERROR: $*\033[0m" >&2; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
