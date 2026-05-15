@@ -90,7 +90,7 @@ jobs:
 
           test -f pdfbox-deps/commons-logging-workload/cache.aot
 
-      - name: Set up Temurin JDK ${{ inputs.baseline_jdk || '24' }} (no-AOT baseline)
+      - name: Set up Temurin JDK ${{ inputs.baseline_jdk || '24' }} (no-AOT baseline + monolithic)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -98,13 +98,6 @@ jobs:
 
       - name: Capture Temurin java path
         run: echo "TEMURIN_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
-
-      - name: Re-enable custom JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: jdkfile
-          java-version: '25'
-          jdkFile: jdk-custom.tar.gz
 
       - name: Create per-op monolithic AOT caches
         working-directory: pdfbox-experiment
@@ -115,6 +108,13 @@ jobs:
           for op in export-text export-images render fromtext split merge decode overlay; do
             test -f "single-${op}.aot"
           done
+
+      - name: Re-enable custom JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: jdkfile
+          java-version: '25'
+          jdkFile: jdk-custom.tar.gz
 
       - name: Create tree.aot (orchestrate-combine-4.sh)
         working-directory: pdfbox-experiment
@@ -165,7 +165,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x workload-timed.sh
-          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" ./workload-timed.sh 2>&1)
+          wl_out=$(JAVA_NO_BIN="$TEMURIN_JAVA_HOME/bin/java" JAVA_MONOLITHIC_BIN="$TEMURIN_JAVA_HOME/bin/java" ./workload-timed.sh 2>&1)
           echo "$wl_out"
           wl_out_clean=$(echo "$wl_out" | sed 's/\x1B\[[0-9;]*m//g')
 
