@@ -29,8 +29,9 @@ java -cp "$CP" "$MAIN" export:text --input "$PDF" --output "$TMP/create-aot-text
 java -cp "$CP" "$MAIN" split --input "$PDF" -split 3 -outputPrefix "$TMP/create-aot-split" >/dev/null 2>&1
 
 for op in "${OPS[@]}"; do
-  aot="single-${op}.aot"
-  conf="single-${op}.aotconf"
+  safe="${op//:/-}"
+  aot="single-${safe}.aot"
+  conf="single-${safe}.aotconf"
   if [[ -f "$aot" ]]; then
     log "$aot already exists, skipping."
     continue

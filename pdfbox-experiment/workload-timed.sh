@@ -28,7 +28,7 @@ OPS=(export:text export:images render fromtext split merge decode overlay)
 [[ -f "$JAR" ]] || fail "$JAR not found — build pdfbox first"
 [[ -f "$PDF" ]] || fail "$PDF not found"
 for _op in "${OPS[@]}"; do
-  [[ -f "single-${_op}.aot" ]] || fail "single-${_op}.aot not found — run ./create-single-aot.sh first"
+  [[ -f "single-${_op//:/-}.aot" ]] || fail "single-${_op//:/-}.aot not found — run ./create-single-aot.sh first"
 done
 [[ -f "$MERGED_AOT" ]] || fail "tree.aot not found — run orchestrate-combine-4.sh first"
 
@@ -87,7 +87,7 @@ _run_merged() {
 _run_mono_cross() {
   local train_op="$1" test_op="$2"
   local -a args; op_args "$test_op" args
-  "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${train_op}.aot" -XX:+AOTClassLinking \
+  "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${train_op//:/-}.aot" -XX:+AOTClassLinking \
     -cp "$CP" "$MAIN" "${args[@]}"
 }
 
@@ -248,7 +248,7 @@ _classload_row() {
         -cp "$CP" "$MAIN" "${args[@]}" >/dev/null 2>&1
       ;;
     monolithic)
-      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${op}.aot" -XX:+AOTClassLinking \
+      "$JAVA_MONOLITHIC_BIN" -XX:AOTCache="single-${op//:/-}.aot" -XX:+AOTClassLinking \
         -Xlog:class+load:file="$logfile" \
         -cp "$CP" "$MAIN" "${args[@]}" >/dev/null 2>&1
       ;;
